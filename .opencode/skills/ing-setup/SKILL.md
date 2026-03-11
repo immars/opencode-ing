@@ -62,9 +62,19 @@ cat config/agent.yaml
 mkdir -p groups store
 ```
 
-### 5. 启动 Agent
+HP|### 5. 创建 OpenCode Agent
+JQ|
+VB|确保 `.opencode/agents/assistant.md` 存在：
+RN|
+BV|```bash
+WY|ls .opencode/agents/assistant.md
+MM|```
+XA|
+SQ|如果没有，创建 agent 定义（已预置在项目中）。
+RN|
+HP|### 6. 启动 Agent
 
-```bash
+bash scripts/start-agent.sh
 bash scripts/start-agent.sh
 ```
 

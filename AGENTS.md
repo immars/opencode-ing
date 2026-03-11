@@ -6,7 +6,7 @@ This file provides context for agentic coding agents operating in this repositor
 
 OpenCode-ing is an agent system that runs as an extension of OpenCode. It integrates with Feishu (飞书) for messaging and implements long-running autonomous agents with memory management and self-reflection capabilities.
 
-**Reference Implementation**: This project is based on [nanoclaw](https://github.com/horizon-llm/nanoclaw). Many patterns and conventions are inherited from there.
+**Reference Implementation**: This project takes [nanoclaw](https://github.com/horizon-llm/nanoclaw) as a reference. Many patterns and conventions are inspired from there.
 
 **Key Technologies:**
 
