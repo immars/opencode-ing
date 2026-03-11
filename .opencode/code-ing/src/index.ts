@@ -5,14 +5,16 @@
  * 功能：
  * 1. 查找或创建 "Assistant Managed Session"
  * 2. 定时触发 assistant agent
+ * 3. 注入记忆 Context
  */
 
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
+import { buildMemoryContext } from "./memory.js";
 
 const MANAGED_SESSION_NAME = "Assistant Managed Session";
 
 export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
-  const { client } = ctx;
+  const { client, directory } = ctx;
 
   await client.app.log({
     body: {
@@ -25,10 +27,24 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
   const AUTO_TRIGGER_DELAY_MS = 10000;
   const DEFAULT_MESSAGE = "你好，请介绍一下你自己";
 
+  // 获取目录信息
+  const memoryContext = buildMemoryContext(directory, "current");
+  
+  // 注入记忆的 system prompt
+  const systemPromptWithMemory = `
+你是 code-ing agent，有自己的记忆系统。
+
+${memoryContext.directoryInfo}
+
+## 记忆规则
+1. 重要信息写入 .code-ing/workspace/long-term/
+2. 每轮对话结束总结写入短期记忆
+3. 定期将短期记忆合并到长期记忆
+`.trim();
+
   // 查找或创建专属 session
   const getOrCreateManagedSession = async (): Promise<string | null> => {
     try {
-      // 搜索名为 "Assistant Managed Session" 的 session
       await client.app.log({
         body: {
           service: "code-ing",
@@ -37,15 +53,14 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
         },
       });
 
-      // 获取所有 session（当前 SDK 不支持 search 参数，需要手动过滤）
+      // 获取所有 session
       const sessionsResp = await client.session.list();
       const allSessions = sessionsResp?.data || [];
       
-      // 手动过滤出名为 "Assistant Managed Session" 的 session
+      // 手动过滤
       const sessions = allSessions.filter((s: any) => s.title === MANAGED_SESSION_NAME);
 
       if (sessions.length > 0) {
-        // 找到已存在的 session
         const existingSession = sessions[0];
         await client.app.log({
           body: {
@@ -57,7 +72,7 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
         return existingSession.id;
       }
 
-      // 没找到，创建新的 session
+      // 创建新 session
       await client.app.log({
         body: {
           service: "code-ing",
@@ -115,12 +130,30 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
           },
         });
 
-        // 发送消息到 assistant agent
+        // 构建带记忆的 prompt
+        const promptWithMemory = `
+${systemPromptWithMemory}
+
+---
+
+## 长期记忆
+${memoryContext.longTermMemory}
+
+## 当前会话
+${memoryContext.shortTermMemory}
+
+---
+
+## 当前任务
+${DEFAULT_MESSAGE}
+`.trim();
+
+        // 发送消息到 assistant agent（使用 system prompt）
         await client.session.prompt({
           path: { id: sessionId },
           body: {
             agent: "assistant",
-            parts: [{ type: "text", text: DEFAULT_MESSAGE }],
+            parts: [{ type: "text", text: promptWithMemory }],
           },
         });
 
@@ -128,7 +161,7 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
           body: {
             service: "code-ing",
             level: "info",
-            message: `Auto-trigger sent to assistant: "${DEFAULT_MESSAGE}"`,
+            message: `Auto-trigger sent with memory context`,
           },
         });
       } catch (err) {
@@ -145,6 +178,15 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
 
   // 主流程
   const run = async () => {
+    // 记录记忆目录信息
+    await client.app.log({
+      body: {
+        service: "code-ing",
+        level: "info",
+        message: `Memory directory: ${memoryContext.directoryInfo.split('\n')[2]}`,
+      },
+    });
+
     const sessionId = await getOrCreateManagedSession();
     if (sessionId) {
       await scheduleTrigger(sessionId);

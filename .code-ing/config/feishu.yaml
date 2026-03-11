@@ -1,0 +1,19 @@
+# 飞书配置
+# 从飞书开放平台获取应用凭证: https://open.feishu.cn/
+
+# 飞书应用凭证 (必填)
+app_id: ''
+app_secret: ''
+
+# 消息配置
+message:
+  # 轮询间隔 (秒)
+  poll_interval: 5
+  # 监听的群组 ID 列表 (留空则监听所有)
+  group_ids: []
+
+# Webhook 配置 (可选，用于接收事件推送)
+webhook:
+  enabled: false
+  # verification_token: ''
+  # encrypt_key: ''

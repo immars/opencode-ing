@@ -1,0 +1,26 @@
+# Agent 配置
+# code-ing agent 的运行时配置
+
+# Agent 基本信息
+agent:
+  name: 'Assistant'
+  # 飞书消息中的触发词
+  trigger: '@Assistant'
+
+# 记忆管理
+memory:
+  # 短期记忆: 保留最近的会话数
+  short_term:
+    max_sessions: 10
+  # 长期记忆: 自动整理阈值
+  long_term:
+    # 短期记忆条数达到此值时触发整理
+    consolidation_threshold: 20
+
+# LLM 配置
+llm:
+  model: 'claude-sonnet-4-20250514'
+  # max_tokens: 4096
+
+# 日志级别: debug, info, warn, error
+log_level: 'info'
