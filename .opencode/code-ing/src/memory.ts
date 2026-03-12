@@ -36,12 +36,13 @@ export interface AgentConfig {
 export interface FeishuConfig {
   app_id: string;
   app_secret: string;
-  message: {
-    poll_interval: number;
-    group_ids: string[];
+  connection?: {
+    enabled?: boolean;
+    reconnect_interval?: number;
   };
-  webhook: {
-    enabled: boolean;
+  message?: {
+    poll_interval?: number;
+    group_ids?: string[];
   };
 }
 
@@ -111,19 +112,16 @@ export function writeShortTermMemory(
     "sessions"
   );
   
-  // 确保目录存在
   if (!existsSync(sessionsDir)) {
     mkdirSync(sessionsDir, { recursive: true });
   }
   
   const sessionFile = join(sessionsDir, `${sessionId}.md`);
   
-  // 如果文件已存在，追加内容
   if (existsSync(sessionFile)) {
     const existing = readFileSync(sessionFile, "utf-8");
     writeFileSync(sessionFile, `${existing}\n\n---\n\n${content}`);
   } else {
-    // 新建文件
     writeFileSync(sessionFile, content);
   }
 }
@@ -207,7 +205,6 @@ export function writeLongTermMemory(
 ): void {
   const longTermDir = join(getCodeIngPath(projectDir), "workspace", "long-term");
   
-  // 确保目录存在
   if (!existsSync(longTermDir)) {
     mkdirSync(longTermDir, { recursive: true });
   }
@@ -223,7 +220,6 @@ export function buildMemoryContext(
   projectDir: string,
   sessionId: string
 ): MemoryContext {
-  // 目录结构信息
   const directoryInfo = `
 ## 你的记忆目录结构
 .code-ing/
@@ -236,10 +232,7 @@ export function buildMemoryContext(
     └── long-term/            # 长期记忆（重要信息）
 `;
   
-  // 长期记忆
   const longTermMemory = readLongTermMemory(projectDir);
-  
-  // 短期记忆（当前会话）
   const shortTermMemory = readShortTermMemory(projectDir, sessionId);
   
   return {
@@ -250,29 +243,24 @@ export function buildMemoryContext(
 }
 
 /**
- * 简单的 YAML 解析（仅支持基本键值对）
+ * 简单的 YAML 解析
  */
 function parseYaml(content: string): Record<string, any> {
   const result: Record<string, any> = {};
   const lines = content.split("\n");
   let currentKey = "";
   let currentObj: Record<string, any> = result;
-  const stack: Record<string, any>[] = [];
   
   for (const line of lines) {
-    // 跳过注释和空行
     if (line.trim().startsWith("#") || !line.trim()) continue;
     
-    // 检查缩进级别
     const indent = line.search(/\S/);
-    
-    // 处理键值对
     const match = line.match(/^(\s*)(\w+):\s*(.*)$/);
+    
     if (match) {
       const [, , key, value] = match;
       
       if (indent === 0) {
-        // 顶级键
         if (value.trim()) {
           result[key] = value.trim().replace(/['"]/g, "");
         } else {
@@ -281,7 +269,6 @@ function parseYaml(content: string): Record<string, any> {
         }
         currentKey = key;
       } else if (indent === 2) {
-        // 二级键
         if (value.trim()) {
           currentObj[key] = value.trim().replace(/['"]/g, "");
         } else {

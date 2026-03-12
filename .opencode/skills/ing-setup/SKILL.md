@@ -92,7 +92,24 @@ cat .code-ing/config/feishu.yaml
 
 # 检查 Agent 配置
 cat .code-ing/config/agent.yaml
+KX|```
+
+### 4. 重新加载配置
+
+配置修改后，调用 code-ing 插件的工具重新加载：
+
 ```
+请调用 code-ing.reload-feishu 工具来重新加载飞书配置
+```
+
+或者查看当前状态：
+
+```
+请调用 code-ing.feishu-status 工具查看飞书配置状态
+请调用 code-ing.memory-status 工具查看记忆状态
+```
+
+### 5. 启动 OpenCode
 
 ### 5. 启动 OpenCode
 
