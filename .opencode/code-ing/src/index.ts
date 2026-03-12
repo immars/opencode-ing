@@ -19,7 +19,7 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
   const { client, directory } = ctx;
 
   // 获取目录信息
-  const memoryContext = buildMemoryContext(directory, "current");
+  const memoryContext = buildMemoryContext(directory, "feishu_message");
 
   // 注入记忆的 system prompt
   const systemPromptWithMemory = `
@@ -197,7 +197,7 @@ ${memoryContext.directoryInfo}
         description: "获取当前记忆状态",
         args: {},
         async execute(args, context) {
-          const memCtx = buildMemoryContext(directory, "current");
+          const memCtx = buildMemoryContext(directory, "feishu_message");
           return "记忆状态:\n- 长期记忆: " + (memCtx.longTermMemory ? "有内容" : "暂无") + "\n- 短期记忆: " + (memCtx.shortTermMemory ? "有内容" : "暂无") + "\n- 目录: .code-ing/workspace/";
         },
       }),
