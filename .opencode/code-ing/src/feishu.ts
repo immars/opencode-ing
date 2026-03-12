@@ -55,7 +55,8 @@ export async function createWSClient(
 
   try {
     const lark = await import("@larksuiteoapi/node-sdk");
-    const ws: any = new lark.WSClient({ appId: client.appId, appSecret: client.appSecret });
+
+    // 创建事件分发器
     const eventDispatcher = new lark.EventDispatcher({}).register({
       "im.message.receive_v1": async (data: any) => {
         console.log("[Feishu WS] Received:", data);
@@ -63,25 +64,16 @@ export async function createWSClient(
       },
     });
 
+    // 创建 WS Client
+    const ws = new lark.WSClient({
+      appId: client.appId,
+      appSecret: client.appSecret,
+    });
+
+    // 启动长连接
     ws.start({ eventDispatcher });
 
-    ws.on("open", () => {
-      console.log("[Feishu WS] Connected!");
-      if (wsClient.onConnect) wsClient.onConnect();
-    });
-
-    ws.on("close", () => {
-      console.log("[Feishu WS] Disconnected");
-      if (wsClient.onDisconnect) wsClient.onDisconnect();
-      setTimeout(async () => {
-        console.log("[Feishu WS] Reconnecting...");
-        await createWSClient(client, options);
-      }, options.reconnectInterval || 5000);
-    });
-
-    ws.on("error", (error: any) => {
-      console.error("[Feishu WS] Error:", error);
-    });
+    console.log("[Feishu WS] Started, waiting for connection...");
 
     wsClient.wsClient = ws;
     return wsClient;
