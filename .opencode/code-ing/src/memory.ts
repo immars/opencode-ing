@@ -7,7 +7,9 @@
 
 export { loadFeishuConfig } from './memory/l9.js';
 export { getFeishuContext, getScheduledContext, formatContextAsPrompt } from './memory/context.js';
-export { startScheduler, stopScheduler } from './memory/scheduler.js';
+export { startScheduler, stopScheduler, getNextScheduledTime } from './memory/scheduler.js';
+export { getOrCreateManagedSession, rotateOldSessions, deleteOldSessions } from './memory/session.js';
+export { generateDailySummary, generateWeeklySummary } from './memory/l1.js';
 export { getOrCreateManagedSession, rotateOldSessions, deleteOldSessions } from './memory/session.js';
 
 // Legacy re-exports for backward compatibility

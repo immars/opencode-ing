@@ -9,8 +9,8 @@
  */
 
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
-import { tool } from "@opencode-ai/plugin";
-import { buildMemoryContext, loadFeishuConfig } from "./memory.js";
+import { buildMemoryContext, loadFeishuConfig, startScheduler, stopScheduler, generateDailySummary, generateWeeklySummary } from "./memory.js";
+
 import { createFeishuClient, createWSClient, closeWSClient, sendMessage } from "./feishu.js";
 
 const MANAGED_SESSION_NAME = "Assistant Managed Session";
@@ -35,6 +35,21 @@ ${memoryContext.directoryInfo}
 
   // 飞书连接状态
   let feishuWSClient: any = null;
+
+  // 启动定时任务调度器
+  startScheduler(directory, async (tasks) => {
+    for (const task of tasks) {
+      if (task.name === "generate-l1" || task.name === "daily-summary") {
+        const today = new Date().toISOString().split("T")[0];
+        await generateDailySummary(directory, today);
+      } else if (task.name === "generate-l2" || task.name === "weekly-summary") {
+        const now = new Date();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay());
+        await generateWeeklySummary(directory, weekStart.toISOString().split("T")[0]);
+      }
+    }
+  });
 
   // 连接飞书
   const connectFeishu = async (): Promise<string> => {
