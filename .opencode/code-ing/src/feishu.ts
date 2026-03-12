@@ -1,14 +1,24 @@
 /**
  * code-ing Feishu Integration Module
  * 
- * 使用长连接 (WebSocket) 接收飞书事件
+ * 使用飞书官方 SDK 长连接
  * 参考: https://open.feishu.cn/document/ukTMukTMukTM/uADOwUjLwgDM14CM4ATN
  */
 
 import { loadFeishuConfig } from "./memory.js";
 
-const FEISHU_API_BASE = "https://open.feishu.cn/open-apis";
-const WSS_URL = "wss://open.feishu.cn/websocket/v1";
+// 动态导入 SDK
+let Lark: any = null;
+let WSClient: any = null;
+
+async function getLarkSDK() {
+  if (!Lark) {
+    const module = await import("@larksuiteoapi/node-sdk");
+    Lark = module.default;
+    WSClient = module.WSClient;
+  }
+  return { Lark, WSClient };
+}
 
 export interface FeishuMessage {
   message_id: string;
@@ -29,41 +39,16 @@ export interface FeishuClient {
 }
 
 export interface FeishuWSClient {
-  ws?: any;
-  reconnectInterval?: number;
-  onMessage?: (event: FeishuWSMessage) => void;
+  wsClient?: any;
+  onMessage?: (event: any) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
 }
 
-export interface FeishuWSMessage {
-  header: {
-    event_id: string;
-    event_type: string;
-    token: string;
-    create_time: string;
-  };
-  event: {
-    message?: {
-      message_id: string;
-      chat_id: string;
-      message_type: string;
-      body?: {
-        content: string;
-      };
-      sender?: {
-        sender_id?: {
-          user_id?: string;
-        };
-      };
-    };
-  };
-}
-
 /**
- * 创建飞书客户端
+ * 创建飞书客户端配置
  */
-export function createFeishuClient(projectDir: string): FeishuClient | null {
+export function createFeishuClient(projectDir: string): { app_id: string; app_secret: string } | null {
   const config = loadFeishuConfig(projectDir);
   
   if (!config || !config.app_id || !config.app_secret) {
@@ -79,33 +64,25 @@ export function createFeishuClient(projectDir: string): FeishuClient | null {
 /**
  * 获取 access_token
  */
-export async function getAccessToken(client: FeishuClient): Promise<string | null> {
-  if (client.access_token && client.token_expires_at && Date.now() < client.token_expires_at) {
-    return client.access_token;
-  }
+export async function getAccessToken(client: { app_id: string; app_secret: string }): Promise<string | null> {
+  const { Lark } = await getLarkSDK();
+  
+  const clientInstance = new Lark({
+    appId: client.app_id,
+    appSecret: client.app_secret,
+  });
   
   try {
-    const response = await fetch(`${FEISHU_API_BASE}/auth/v3/tenant_access_token/internal`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-      },
-      body: JSON.stringify({
-        app_id: client.app_id,
-        app_secret: client.app_secret,
-      }),
+    const result = await clientInstance.auth.getTenantAccessToken({
+      app_id: client.app_id,
+      app_secret: client.app_secret,
     });
     
-    const data = await response.json();
-    
-    if (data.code === 0) {
-      const token = data.tenant_access_token as string;
-      client.access_token = token;
-      client.token_expires_at = Date.now() + (data.expire - 300) * 1000;
-      return token;
+    if (result.code === 0) {
+      return result.tenant_access_token;
     }
     
-    console.error("Failed to get access_token:", data);
+    console.error("Failed to get access_token:", result);
     return null;
   } catch (e) {
     console.error("Error getting access_token:", e);
@@ -117,38 +94,30 @@ export async function getAccessToken(client: FeishuClient): Promise<string | nul
  * 发送消息
  */
 export async function sendMessage(
-  client: FeishuClient,
+  client: { app_id: string; app_secret: string },
   chatId: string,
   content: string
 ): Promise<boolean> {
-  const token = await getAccessToken(client);
-  if (!token) {
-    return false;
-  }
+  const { Lark } = await getLarkSDK();
+  
+  const clientInstance = new Lark({
+    appId: client.app_id,
+    appSecret: client.app_secret,
+  });
   
   try {
-    const response = await fetch(`${FEISHU_API_BASE}/im/v1/messages`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Authorization": `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        receive_id: chatId,
+    const result = await clientInstance.im.message.create({
+      params: {
         receive_id_type: "chat_id",
+      },
+      data: {
+        receive_id: chatId,
         msg_type: "text",
         content: JSON.stringify({ text: content }),
-      }),
+      },
     });
     
-    const data = await response.json();
-    
-    if (data.code === 0) {
-      return true;
-    }
-    
-    console.error("Failed to send message:", data);
-    return false;
+    return result.code === 0;
   } catch (e) {
     console.error("Error sending message:", e);
     return false;
@@ -159,39 +128,29 @@ export async function sendMessage(
  * 回复消息
  */
 export async function replyMessage(
-  client: FeishuClient,
+  client: { app_id: string; app_secret: string },
   messageId: string,
   content: string
 ): Promise<boolean> {
-  const token = await getAccessToken(client);
-  if (!token) {
-    return false;
-  }
+  const { Lark } = await getLarkSDK();
+  
+  const clientInstance = new Lark({
+    appId: client.app_id,
+    appSecret: client.app_secret,
+  });
   
   try {
-    const response = await fetch(
-      `${FEISHU_API_BASE}/im/v1/messages/${messageId}/reply`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json; charset=utf-8",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          msg_type: "text",
-          content: JSON.stringify({ text: content }),
-        }),
-      }
-    );
+    const result = await clientInstance.im.message.reply({
+      path: {
+        message_id: messageId,
+      },
+      data: {
+        msg_type: "text",
+        content: JSON.stringify({ text: content }),
+      },
+    });
     
-    const data = await response.json();
-    
-    if (data.code === 0) {
-      return true;
-    }
-    
-    console.error("Failed to reply message:", data);
-    return false;
+    return result.code === 0;
   } catch (e) {
     console.error("Error replying message:", e);
     return false;
@@ -199,76 +158,61 @@ export async function replyMessage(
 }
 
 /**
- * 创建长连接 WebSocket 客户端
+ * 创建长连接 WebSocket 客户端 (使用飞书 SDK)
  */
 export async function createWSClient(
-  client: FeishuClient,
+  client: { app_id: string; app_secret: string },
   options: {
-    onMessage?: (msg: FeishuWSMessage) => void;
+    onMessage?: (msg: any) => void;
     onConnect?: () => void;
     onDisconnect?: () => void;
     reconnectInterval?: number;
   } = {}
 ): Promise<FeishuWSClient | null> {
-  const token = await getAccessToken(client);
-  if (!token) {
-    console.error("Failed to get token for WS connection");
-    return null;
-  }
-
+  const { Lark, WSClient: WSClientClass } = await getLarkSDK();
+  
   const wsClient: FeishuWSClient = {
-    reconnectInterval: options.reconnectInterval || 5000,
     onMessage: options.onMessage,
     onConnect: options.onConnect,
     onDisconnect: options.onDisconnect,
   };
-
+  
+  const clientInstance = new Lark({
+    appId: client.app_id,
+    appSecret: client.app_secret,
+  });
+  
   return new Promise((resolve) => {
-    const wsUrl = `${WSS_URL}?app_id=${client.app_id}&app_secret=${client.app_secret}&tenant_access_token=${token}`;
-    
-    const ws = new (globalThis as any).WebSocket(wsUrl);
-    
-    ws.onopen = () => {
-      console.log("[Feishu WS] Connected");
-      wsClient.ws = ws;
-      if (wsClient.onConnect) {
-        wsClient.onConnect();
-      }
-      resolve(wsClient);
-    };
-    
-    ws.onmessage = (event: any) => {
-      try {
-        const data = JSON.parse(event.data);
-        
-        if (data.type === "ping") {
-          ws.send(JSON.stringify({ type: "pong" }));
-          return;
+    const ws = new WSClientClass(clientInstance, {
+      onOpen: () => {
+        console.log("[Feishu WS] Connected via SDK");
+        if (wsClient.onConnect) {
+          wsClient.onConnect();
+        }
+        resolve(wsClient);
+      },
+      onMessage: (msg: any) => {
+        if (wsClient.onMessage) {
+          wsClient.onMessage(msg);
+        }
+      },
+      onClose: () => {
+        console.log("[Feishu WS] Disconnected");
+        if (wsClient.onDisconnect) {
+          wsClient.onDisconnect();
         }
         
-        if (data.header?.event_type === "im.message" && wsClient.onMessage) {
-          wsClient.onMessage(data as FeishuWSMessage);
-        }
-      } catch (e) {
-        console.error("[Feishu WS] Parse error:", e);
-      }
-    };
+        setTimeout(async () => {
+          console.log("[Feishu WS] Reconnecting...");
+          await createWSClient(client, options);
+        }, options.reconnectInterval || 5000);
+      },
+      onError: (error: any) => {
+        console.error("[Feishu WS] Error:", error);
+      },
+    });
     
-    ws.onclose = () => {
-      console.log("[Feishu WS] Disconnected");
-      if (wsClient.onDisconnect) {
-        wsClient.onDisconnect();
-      }
-      
-      setTimeout(async () => {
-        console.log("[Feishu WS] Reconnecting...");
-        await createWSClient(client, options);
-      }, wsClient.reconnectInterval);
-    };
-    
-    ws.onerror = (error: any) => {
-      console.error("[Feishu WS] Error:", error);
-    };
+    wsClient.wsClient = ws;
   });
 }
 
@@ -276,9 +220,9 @@ export async function createWSClient(
  * 关闭 WebSocket 连接
  */
 export function closeWSClient(wsClient: FeishuWSClient): void {
-  if (wsClient.ws) {
-    wsClient.ws.close();
-    wsClient.ws = undefined;
+  if (wsClient.wsClient) {
+    wsClient.wsClient.close();
+    wsClient.wsClient = undefined;
   }
 }
 

@@ -4,7 +4,6 @@
 # 飞书应用凭证 (必填)
 app_id: 'cli_a9389ec972f8dcba'
 app_secret: 'DG8KWdV5YCRISTrOGkbwwfL84n55chtR'
-
 # 长连接 WebSocket 配置 (推荐)
 connection:
   # 启用长连接
