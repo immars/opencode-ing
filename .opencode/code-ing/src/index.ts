@@ -9,6 +9,7 @@
  */
 
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
+import { tool } from "@opencode-ai/plugin";
 import { buildMemoryContext, loadFeishuConfig, startScheduler, stopScheduler, generateDailySummary, generateWeeklySummary } from "./memory.js";
 
 import { createFeishuClient, createWSClient, closeWSClient, sendMessage } from "./feishu.js";
@@ -213,7 +214,7 @@ ${memoryContext.directoryInfo}
         args: {},
         async execute(args, context) {
           const memCtx = buildMemoryContext(directory, "feishu_message");
-          return "记忆状态:\n- 长期记忆: " + (memCtx.longTermMemory ? "有内容" : "暂无") + "\n- 短期记忆: " + (memCtx.shortTermMemory ? "有内容" : "暂无") + "\n- 目录: .code-ing/workspace/";
+          return "记忆状态:\n- 长期记忆: " + (memCtx.longTermMemory ? "有内容" : "暂无") + "\n- 最近消息: " + memCtx.recentMessages.length + "条\n- 每日摘要: " + memCtx.dailySummaries.length + "条\n- 目录: .code-ing/workspace/";
         },
       }),
     },

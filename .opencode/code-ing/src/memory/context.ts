@@ -7,7 +7,8 @@
 import type { MemoryContext, TriggerType } from './types.js';
 import { readSoul, readPeople, readTasks, readCron, readCronSys, readAllL9 } from './l9.js';
 import { readRecentMessages, readAllMessages } from './l0.js';
-import { readDailySummaries, readWeeklySummaries } from './l1.js';
+import { readDailySummaries } from './l1.js';
+import { readWeeklySummaries } from './l2.js';
 import { readWeeklySummaries as readL2WeeklySummaries } from './l2.js';
 import { L1_DIR, L2_DIR, PATHS } from './constants.js';
 

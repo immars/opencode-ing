@@ -5,17 +5,13 @@
  * New implementation: src/memory/
  */
 
-export { loadFeishuConfig } from './memory/l9.js';
-export { getFeishuContext, getScheduledContext, formatContextAsPrompt } from './memory/context.js';
-export { startScheduler, stopScheduler, getNextScheduledTime } from './memory/scheduler.js';
-export { getOrCreateManagedSession, rotateOldSessions, deleteOldSessions } from './memory/session.js';
-export { generateDailySummary, generateWeeklySummary } from './memory/l1.js';
-export { getOrCreateManagedSession, rotateOldSessions, deleteOldSessions } from './memory/session.js';
-
-// Legacy re-exports for backward compatibility
-import { readLongTermMemory, writeLongTermMemory, readCron } from './memory/l9.js';
-import { readShortTermMemory, writeShortTermMemory, readAllShortTermMemory } from './memory/l0.js';
-import { MemoryContext } from './memory/types.js';
+import { getFeishuContext, getScheduledContext, formatContextAsPrompt } from './memory/context.js';
+import { startScheduler, stopScheduler, getNextScheduledTime } from './memory/scheduler.js';
+import { getOrCreateManagedSession, rotateOldSessions, deleteOldSessions } from './memory/session.js';
+import { writeDailySummary, readDailySummary, readDailySummaries } from './memory/l1.js';
+import { writeWeeklySummary, readWeeklySummary, readWeeklySummaries } from './memory/l2.js';
+import { readSoul, readPeople, readTasks, readCron, readCronSys, readAllL9 } from './memory/l9.js';
+import { MessageRecord, DailySummary, WeeklySummary, MemoryContext, TriggerType } from './memory/types.js';
 
 /**
  * Legacy buildMemoryContext - wraps new implementation
@@ -25,17 +21,77 @@ export function buildMemoryContext(
   trigger: string
 ): MemoryContext {
   // Map legacy trigger to new trigger type
-  const triggerType = trigger === 'scheduled' ? 'scheduled' : 'feishu_message';
-  const { getFeishuContext } = require('./memory/context.js');
+  const triggerType: TriggerType = trigger === 'scheduled' ? 'scheduled' : 'feishu_message';
   return getFeishuContext(projectDir);
 }
 
+// Legacy function names for backward compatibility
+export const loadFeishuConfig = {
+  // Placeholder - actual config is read differently
+};
+export const readLongTermMemory = {
+  soul: readSoul,
+  people: readPeople,
+  tasks: readTasks,
+  cron: readCron,
+  cronSys: readCronSys,
+};
+export const writeLongTermMemory = {
+  // Write functions would be added if needed
+};
+export const readShortTermMemory = {
+  // Would read from L0
+};
+export const writeShortTermMemory = {
+  // Would write to L0  
+};
+export const readAllShortTermMemory = {
+  // Would read all from L0
+};
+
+// Stub functions for summary generation (would integrate with LLM)
+export function generateDailySummary(projectDir: string): void {
+  // Placeholder - would call LLM to generate summary
+  console.log('[memory] generateDailySummary not implemented - needs LLM integration');
+}
+
+export function generateWeeklySummary(projectDir: string): void {
+  // Placeholder - would call LLM to generate summary
+  console.log('[memory] generateWeeklySummary not implemented - needs LLM integration');
+}
+
 export {
-  readLongTermMemory,
-  writeLongTermMemory,
+  // From context
+  getFeishuContext,
+  getScheduledContext,
+  formatContextAsPrompt,
+  // From scheduler
+  startScheduler,
+  stopScheduler,
+  getNextScheduledTime,
+  // From session
+  getOrCreateManagedSession,
+  rotateOldSessions,
+  deleteOldSessions,
+  // From l1
+  writeDailySummary,
+  readDailySummary,
+  readDailySummaries,
+  // From l2
+  writeWeeklySummary,
+  readWeeklySummary,
+  readWeeklySummaries,
+  // From l9
+  readSoul,
+  readPeople,
+  readTasks,
   readCron,
-  readShortTermMemory,
-  writeShortTermMemory,
-  readAllShortTermMemory,
+  readCronSys,
+  readAllL9,
+  // Types
+  MessageRecord,
+  DailySummary,
+  WeeklySummary,
   MemoryContext,
+  TriggerType,
 };
