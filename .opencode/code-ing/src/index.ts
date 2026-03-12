@@ -239,7 +239,8 @@ ${DEFAULT_MESSAGE}
             return "未找到飞书配置";
           }
           
-          return `飞书配置状态:\n- App ID: ${config.app_id || '未设置'}\n- Connection: ${config.connection?.enabled ? '长连接 (WebSocket)' : 'Webhook'}\n- Group IDs: ${config.message?.group_ids?.join(', ') || '全部'}`;
+          const groupIds = Array.isArray(config.message?.group_ids) ? config.message.group_ids.join(', ') : '全部';
+          return `飞书配置状态:\n- App ID: ${config.app_id || '未设置'}\n- Connection: ${config.connection?.enabled ? '长连接 (WebSocket)' : '未启用'}\n- Group IDs: ${groupIds}`;
         },
       }),
       
