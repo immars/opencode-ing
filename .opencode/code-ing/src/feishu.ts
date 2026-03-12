@@ -1,16 +1,14 @@
 /**
  * code-ing Feishu Integration Module
  * 
- * 负责：
- * 1. 读取飞书配置
- * 2. 获取飞书 access_token
- * 3. 接收消息
- * 4. 发送消息
+ * 使用长连接 (WebSocket) 接收飞书事件
+ * 参考: https://open.feishu.cn/document/ukTMukTMukTM/uADOwUjLwgDM14CM4ATN
  */
 
 import { loadFeishuConfig } from "./memory.js";
 
 const FEISHU_API_BASE = "https://open.feishu.cn/open-apis";
+const WSS_URL = "wss://open.feishu.cn/websocket/v1";
 
 export interface FeishuMessage {
   message_id: string;
@@ -28,6 +26,38 @@ export interface FeishuClient {
   app_secret: string;
   access_token?: string;
   token_expires_at?: number;
+}
+
+export interface FeishuWSClient {
+  ws?: any;
+  reconnectInterval?: number;
+  onMessage?: (event: FeishuWSMessage) => void;
+  onConnect?: () => void;
+  onDisconnect?: () => void;
+}
+
+export interface FeishuWSMessage {
+  header: {
+    event_id: string;
+    event_type: string;
+    token: string;
+    create_time: string;
+  };
+  event: {
+    message?: {
+      message_id: string;
+      chat_id: string;
+      message_type: string;
+      body?: {
+        content: string;
+      };
+      sender?: {
+        sender_id?: {
+          user_id?: string;
+        };
+      };
+    };
+  };
 }
 
 /**
@@ -50,7 +80,6 @@ export function createFeishuClient(projectDir: string): FeishuClient | null {
  * 获取 access_token
  */
 export async function getAccessToken(client: FeishuClient): Promise<string | null> {
-  // 检查缓存的 token 是否有效
   if (client.access_token && client.token_expires_at && Date.now() < client.token_expires_at) {
     return client.access_token;
   }
@@ -72,7 +101,6 @@ export async function getAccessToken(client: FeishuClient): Promise<string | nul
     if (data.code === 0) {
       const token = data.tenant_access_token as string;
       client.access_token = token;
-      // 提前 5 分钟过期
       client.token_expires_at = Date.now() + (data.expire - 300) * 1000;
       return token;
     }
@@ -171,48 +199,86 @@ export async function replyMessage(
 }
 
 /**
- * 拉取消息列表（轮询）
+ * 创建长连接 WebSocket 客户端
  */
-export async function pullMessages(
+export async function createWSClient(
   client: FeishuClient,
-  chatId: string,
-  startTime?: string
-): Promise<FeishuMessage[]> {
+  options: {
+    onMessage?: (msg: FeishuWSMessage) => void;
+    onConnect?: () => void;
+    onDisconnect?: () => void;
+    reconnectInterval?: number;
+  } = {}
+): Promise<FeishuWSClient | null> {
   const token = await getAccessToken(client);
   if (!token) {
-    return [];
+    console.error("Failed to get token for WS connection");
+    return null;
   }
-  
-  try {
-    const params = new URLSearchParams({
-      receive_id: chatId,
-      receive_id_type: "chat_id",
-    });
+
+  const wsClient: FeishuWSClient = {
+    reconnectInterval: options.reconnectInterval || 5000,
+    onMessage: options.onMessage,
+    onConnect: options.onConnect,
+    onDisconnect: options.onDisconnect,
+  };
+
+  return new Promise((resolve) => {
+    const wsUrl = `${WSS_URL}?app_id=${client.app_id}&app_secret=${client.app_secret}&tenant_access_token=${token}`;
     
-    if (startTime) {
-      params.append("start_time", startTime);
-    }
+    const ws = new (globalThis as any).WebSocket(wsUrl);
     
-    const response = await fetch(
-      `${FEISHU_API_BASE}/im/v1/messages?${params}`,
-      {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
+    ws.onopen = () => {
+      console.log("[Feishu WS] Connected");
+      wsClient.ws = ws;
+      if (wsClient.onConnect) {
+        wsClient.onConnect();
       }
-    );
+      resolve(wsClient);
+    };
     
-    const data = await response.json();
+    ws.onmessage = (event: any) => {
+      try {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === "ping") {
+          ws.send(JSON.stringify({ type: "pong" }));
+          return;
+        }
+        
+        if (data.header?.event_type === "im.message" && wsClient.onMessage) {
+          wsClient.onMessage(data as FeishuWSMessage);
+        }
+      } catch (e) {
+        console.error("[Feishu WS] Parse error:", e);
+      }
+    };
     
-    if (data.code === 0 && data.data && data.data.items) {
-      return data.data.items;
-    }
+    ws.onclose = () => {
+      console.log("[Feishu WS] Disconnected");
+      if (wsClient.onDisconnect) {
+        wsClient.onDisconnect();
+      }
+      
+      setTimeout(async () => {
+        console.log("[Feishu WS] Reconnecting...");
+        await createWSClient(client, options);
+      }, wsClient.reconnectInterval);
+    };
     
-    return [];
-  } catch (e) {
-    console.error("Error pulling messages:", e);
-    return [];
+    ws.onerror = (error: any) => {
+      console.error("[Feishu WS] Error:", error);
+    };
+  });
+}
+
+/**
+ * 关闭 WebSocket 连接
+ */
+export function closeWSClient(wsClient: FeishuWSClient): void {
+  if (wsClient.ws) {
+    wsClient.ws.close();
+    wsClient.ws = undefined;
   }
 }
 
@@ -221,5 +287,6 @@ export default {
   getAccessToken,
   sendMessage,
   replyMessage,
-  pullMessages,
+  createWSClient,
+  closeWSClient,
 };

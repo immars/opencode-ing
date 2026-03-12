@@ -10,90 +10,140 @@ description: (project - Skill) 引导配置和启动 OpenCode-ing Agent。首次
 ## 使用场景
 
 - 首次运行时配置 agent
-- 更新飞书或 API 配置
+- 更新飞书配置
 - 启动/重启 agent
 
 ## 操作步骤
 
-### 1. 检查配置文件
+### 1. 检查工作目录结构
 
-检查 `config/agent.yaml` 是否存在：
-
-```bash
-ls config/agent.yaml 2>/dev/null || echo "配置文件不存在，需要创建"
-```
-
-如果不存在，从模板复制：
+确保 `.code-ing/` 目录存在：
 
 ```bash
-cp config/agent.yaml.example config/agent.yaml
+ls -la .code-ing/
 ```
 
-### 2. 引导用户填写配置
-
-打开 `config/agent.yaml`，引导用户填写以下配置项：
-
-**飞书配置** (必填):
-- `feishu.app_id` - 飞书应用 ID（从飞书开放平台获取）
-- `feishu.app_secret` - 飞书应用密钥
-
-**OpenCode 配置** (必填):
-- `opencode.api_key` - API Key
-- `opencode.model` - 模型选择（默认 claude-sonnet-4-20250514）
-
-**Agent 配置** (可选):
-- `agent.name` - Agent 名称（默认 "Assistant"）
-- `agent.trigger` - 触发词（默认 "@Assistant"）
-
-### 3. 验证配置
-
-确认必填项已填写：
+如果不存在，创建目录结构：
 
 ```bash
-# 检查 YAML 配置是否有效
-cat config/agent.yaml
+mkdir -p .code-ing/config .code-ing/workspace/short-term/sessions .code-ing/workspace/long-term
 ```
 
-### 4. 创建必要目录
+### 2. 配置飞书连接
 
-确保工作目录存在：
+编辑 `.code-ing/config/feishu.yaml`：
 
 ```bash
-mkdir -p groups store
+code .code-ing/config/feishu.yaml
 ```
 
-HP|### 5. 创建 OpenCode Agent
-JQ|
-VB|确保 `.opencode/agents/assistant.md` 存在：
-RN|
-BV|```bash
-WY|ls .opencode/agents/assistant.md
-MM|```
-XA|
-SQ|如果没有，创建 agent 定义（已预置在项目中）。
-RN|
-HP|### 6. 启动 Agent
+填写以下配置：
 
-bash scripts/start-agent.sh
-bash scripts/start-agent.sh
+```yaml
+# 飞书应用凭证 (必填)
+app_id: 'your_app_id'
+app_secret: 'your_app_secret'
+
+# 长连接 WebSocket 配置 (推荐)
+connection:
+  enabled: true
+  reconnect_interval: 5000
+
+message:
+  group_ids: []
 ```
+
+**获取飞书凭证：**
+1. 访问 https://open.feishu.cn/ 创建企业自建应用
+2. 添加"机器人"能力
+3. 获取 App ID 和 App Secret
+4. 在"事件订阅"中启用长连接接收消息
+
+### 3. 配置 Agent（可选）
+
+编辑 `.code-ing/config/agent.yaml`：
+
+```bash
+code .code-ing/config/agent.yaml
+```
+
+配置项：
+
+```yaml
+agent:
+  name: 'Assistant'
+  trigger: '@Assistant'
+
+memory:
+  short_term:
+    max_sessions: 10
+  long_term:
+    consolidation_threshold: 20
+
+llm:
+  model: 'claude-sonnet-4-20250514'
+```
+
+### 4. 验证配置
+
+```bash
+# 检查飞书配置
+cat .code-ing/config/feishu.yaml
+
+# 检查 Agent 配置
+cat .code-ing/config/agent.yaml
+```
+
+### 5. 启动 OpenCode
+
+```bash
+cd /path/to/your/project
+opencode .
+```
+
+插件会自动：
+- 加载飞书配置
+- 建立 WebSocket 长连接
+- 10 秒后自动触发 Agent
 
 ## 配置文件说明
 
-配置文件位于 `config/agent.yaml`，模板参见 `config/agent.yaml.example`。
+| 文件 | 说明 |
+|------|------|
+| `.code-ing/config/feishu.yaml` | 飞书连接配置 |
+| `.code-ing/config/agent.yaml` | Agent 运行时配置 |
+
+### feishu.yaml 配置项
 
 | 配置项 | 必填 | 说明 |
 |--------|------|------|
-| `feishu.app_id` | ✅ | 飞书应用 ID |
-| `feishu.app_secret` | ✅ | 飞书应用密钥 |
-| `opencode.api_key` | ✅ | OpenCode API Key |
-| `opencode.model` | ❌ | LLM 模型 (默认 claude-sonnet-4-20250514) |
-| `agent.name` | ❌ | Agent 显示名称 |
-| `agent.trigger` | ❌ | 飞书消息触发词 |
-| `groups.main` | ❌ | 主分组目录名 |
+| `app_id` | ✅ | 飞书应用 ID |
+| `app_secret` | ✅ | 飞书应用密钥 |
+| `connection.enabled` | ❌ | 启用长连接 (默认 true) |
+| `connection.reconnect_interval` | ❌ | 重连间隔 (默认 5000ms) |
+| `message.group_ids` | ❌ | 监听群组 ID 列表 |
+
+### agent.yaml 配置项
+
+| 配置项 | 必填 | 说明 |
+|--------|------|------|
+| `agent.name` | ❌ | Agent 名称 (默认 Assistant) |
+| `agent.trigger` | ❌ | 触发词 (默认 @Assistant) |
+| `memory.short_term.max_sessions` | ❌ | 短期记忆保留数 |
+| `memory.long_term.consolidation_threshold` | ❌ | 长期记忆整理阈值 |
+| `llm.model` | ❌ | LLM 模型 |
+
+## 飞书应用创建步骤
+
+1. 访问 [飞书开放平台](https://open.feishu.cn/)
+2. 创建"企业自建应用"
+3. 添加应用能力 → 机器人
+4. 获取 App ID 和 App Secret
+5. 配置"事件订阅" → 添加事件 → `im.message.receive_v1`
+6. 发布应用
 
 ## 注意事项
 
 - 配置文件包含敏感信息，已在 `.gitignore` 中排除
-- 首次运行前必须完成飞书应用创建（参见飞书开放平台文档）
+- 长连接需要服务器能访问 `wss://open.feishu.cn`
 - Agent 启动后将持续运行，监听飞书消息
