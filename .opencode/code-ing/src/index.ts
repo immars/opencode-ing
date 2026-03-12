@@ -4,31 +4,28 @@
  * OpenCode-ing Agent 插件
  * 功能：
  * 1. 查找或创建 "Assistant Managed Session"
- * 2. 定时触发 assistant agent
- * 3. 注入记忆 Context
- * 4. 飞书连接
+ * 2. 飞书连接
+ * 3. 记忆系统 Context 注入
  */
 
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
 import { buildMemoryContext, loadFeishuConfig } from "./memory.js";
-import { createFeishuClient, createWSClient, closeWSClient } from "./feishu.js";
+import { createFeishuClient, createWSClient, closeWSClient, sendMessage } from "./feishu.js";
 
 const MANAGED_SESSION_NAME = "Assistant Managed Session";
 
 export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
   const { client, directory } = ctx;
+  
+  const log = async (level: "info" | "debug" | "error" | "warn", message: string) => {
+    console.error(`[code-ing] [${level}] ${message}`);
+    await client.app.log({
+      body: { service: "code-ing", level, message }
+    });
+  };
 
-  await client.app.log({
-    body: {
-      service: "code-ing",
-      level: "info",
-      message: "code-ing Plugin initialized",
-    },
-  });
-
-  const AUTO_TRIGGER_DELAY_MS = 10000;
-  const DEFAULT_MESSAGE = "你好，请介绍一下你自己";
+  await log("info", "code-ing Plugin initialized");
 
   // 获取目录信息
   const memoryContext = buildMemoryContext(directory, "current");
@@ -70,42 +67,82 @@ ${memoryContext.directoryInfo}
       closeWSClient(feishuWSClient);
     }
     
-    await client.app.log({
-      body: {
-        service: "code-ing",
-        level: "info",
-        message: "正在连接飞书 WebSocket...",
-      },
-    });
+    await log("info", "正在连接飞书 WebSocket...");
     
     feishuWSClient = await createWSClient(feishuClient, {
       onMessage: async (msg: any) => {
-        const content = msg.event?.message?.body?.content || "";
-        await client.app.log({
-          body: {
-            service: "code-ing",
-            level: "info",
-            message: "收到飞书消息: " + content.slice(0, 100),
-          },
-        });
+        // 飞书消息结构是扁平的: msg.message.chat_id, msg.message.content
+        const chatId = msg.message?.chat_id;
+        const rawContent = msg.message?.content || "";
+        let textContent = rawContent;
+        
+        try {
+          const parsed = JSON.parse(rawContent);
+          textContent = parsed.text || rawContent;
+        } catch (e) {
+          // ignore JSON parse error
+        }
+
+        await log("info", `收到飞书消息: ${textContent.slice(0, 100)} (chatId: ${chatId})`);
+
+        if (textContent && chatId) {
+          // 1. 找到或创建 Managed Session
+          const sessionId = await getOrCreateManagedSession();
+          if (!sessionId) {
+            await log("error", "Failed to get managed session for incoming message");
+            return;
+          }
+
+          // 2. 将消息发给 assistant
+          await log("info", `Forwarding message to session ${sessionId}...`);
+
+          try {
+            const result = await client.session.prompt({
+              path: { id: sessionId },
+              body: {
+                parts: [{ type: "text", text: textContent }],
+              },
+            });
+
+            // 3. 提取 assistant 回复
+            await log("info", `Full Prompt result: ${JSON.stringify(result).slice(0, 500)}`);
+            
+            const response = (result as any)?.data;
+            const parts = response?.parts || [];
+            await log("info", `Response parts: ${JSON.stringify(parts)}`);
+            
+            // 从 parts 中提取 text 类型的内容
+            const textParts = parts.filter((p: any) => p.type === "text");
+            const responseText = textParts.map((p: any) => p.text).join("\n");
+
+            if (responseText) {
+              await log("info", `Extracted response: ${responseText.slice(0, 200)}`);
+              await log("info", `Sending to Feishu chat ${chatId}: ${responseText.slice(0, 50)}...`);
+              
+              const sendClient = createFeishuClient(directory);
+              if (sendClient) {
+                await sendMessage(sendClient, chatId, responseText);
+              }
+            } else {
+              await log("warn", "No text response found in parts, using fallback");
+              await log("info", `Sending fallback to Feishu chat ${chatId}`);
+              
+              const sendClient = createFeishuClient(directory);
+              if (sendClient) {
+                await sendMessage(sendClient, chatId, "Assistant finished processing.");
+              }
+            }
+          } catch (err: any) {
+            await log("error", "Error processing feishu message: " + err.message);
+            console.error(err);
+          }
+        }
       },
       onConnect: async () => {
-        await client.app.log({
-          body: {
-            service: "code-ing",
-            level: "info",
-            message: "飞书 WebSocket 已连接！",
-          },
-        });
+        await log("info", "飞书 WebSocket 已连接！");
       },
       onDisconnect: async () => {
-        await client.app.log({
-          body: {
-            service: "code-ing",
-            level: "warn",
-            message: "飞书 WebSocket 断开连接",
-          },
-        });
+        await log("warn", "飞书 WebSocket 断开连接");
       },
     });
     
@@ -120,13 +157,7 @@ ${memoryContext.directoryInfo}
   setTimeout(async () => {
     const config = loadFeishuConfig(directory);
     if (config && config.app_id && config.app_secret) {
-      await client.app.log({
-        body: {
-          service: "code-ing",
-          level: "info",
-          message: "检测到飞书配置，尝试自动连接...",
-        },
-      });
+      await log("info", "检测到飞书配置，尝试自动连接...");
       await connectFeishu();
     }
   }, 2000);
@@ -134,13 +165,7 @@ ${memoryContext.directoryInfo}
   // 查找或创建专属 session
   const getOrCreateManagedSession = async (): Promise<string | null> => {
     try {
-      await client.app.log({
-        body: {
-          service: "code-ing",
-          level: "info",
-          message: "Searching for session: " + MANAGED_SESSION_NAME,
-        },
-      });
+      await log("info", "Searching for session: " + MANAGED_SESSION_NAME);
 
       const sessionsResp = await client.session.list();
       const allSessions = sessionsResp?.data || [];
@@ -149,23 +174,11 @@ ${memoryContext.directoryInfo}
 
       if (sessions.length > 0) {
         const existingSession = sessions[0];
-        await client.app.log({
-          body: {
-            service: "code-ing",
-            level: "info",
-            message: "Found existing managed session: " + existingSession.id,
-          },
-        });
+        await log("info", "Found existing managed session: " + existingSession.id);
         return existingSession.id;
       }
 
-      await client.app.log({
-        body: {
-          service: "code-ing",
-          level: "info",
-          message: "Creating new managed session: " + MANAGED_SESSION_NAME,
-        },
-      });
+      await log("info", "Creating new managed session: " + MANAGED_SESSION_NAME);
 
       const newSession = await client.session.create({
         body: { title: MANAGED_SESSION_NAME },
@@ -173,95 +186,16 @@ ${memoryContext.directoryInfo}
 
       const newSessionId = newSession.data?.id;
       if (newSessionId) {
-        await client.app.log({
-          body: {
-            service: "code-ing",
-            level: "info",
-            message: "Created managed session: " + newSessionId,
-          },
-        });
+        await log("info", "Created managed session: " + newSessionId);
         return newSessionId;
       }
 
       return null;
     } catch (err) {
-      await client.app.log({
-        body: {
-          service: "code-ing",
-          level: "error",
-          message: "Failed to get/create managed session: " + err,
-        },
-      });
+      await log("error", "Failed to get/create managed session: " + err);
       return null;
     }
   };
-
-  // 定时触发函数
-  const scheduleTrigger = async (sessionId: string) => {
-    await client.app.log({
-      body: {
-        service: "code-ing",
-        level: "info",
-        message: "Scheduling auto-trigger for session " + sessionId + " in " + AUTO_TRIGGER_DELAY_MS + "ms",
-      },
-    });
-
-    setTimeout(async () => {
-      try {
-        await client.app.log({
-          body: {
-            service: "code-ing",
-            level: "info",
-            message: "Auto-trigger firing now...",
-          },
-        });
-
-        const promptWithMemory = systemPromptWithMemory + "\n\n---\n\n## 长期记忆\n" + memoryContext.longTermMemory + "\n\n## 当前会话\n" + memoryContext.shortTermMemory + "\n\n---\n\n## 当前任务\n" + DEFAULT_MESSAGE;
-
-        await client.session.prompt({
-          path: { id: sessionId },
-          body: {
-            agent: "assistant",
-            parts: [{ type: "text", text: promptWithMemory }],
-          },
-        });
-
-        await client.app.log({
-          body: {
-            service: "code-ing",
-            level: "info",
-            message: "Auto-trigger sent with memory context",
-          },
-        });
-      } catch (err) {
-        await client.app.log({
-          body: {
-            service: "code-ing",
-            level: "error",
-            message: "Auto-trigger error: " + err,
-          },
-        });
-      }
-    }, AUTO_TRIGGER_DELAY_MS);
-  };
-
-  // 主流程
-  const run = async () => {
-    await client.app.log({
-      body: {
-        service: "code-ing",
-        level: "info",
-        message: "Memory directory: .code-ing/",
-      },
-    });
-
-    const sessionId = await getOrCreateManagedSession();
-    if (sessionId) {
-      await scheduleTrigger(sessionId);
-    }
-  };
-
-  setTimeout(run, 3000);
 
   // 返回 hooks，包含自定义工具
   return {

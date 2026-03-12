@@ -59,7 +59,7 @@ export async function createWSClient(
     // 创建事件分发器
     const eventDispatcher = new lark.EventDispatcher({}).register({
       "im.message.receive_v1": async (data: any) => {
-        console.log("[Feishu WS] Received:", data);
+        console.error("[code-ing] [Feishu WS] Received:", data);
         if (wsClient.onMessage) wsClient.onMessage(data);
       },
     });
@@ -73,7 +73,7 @@ export async function createWSClient(
     // 启动长连接
     ws.start({ eventDispatcher });
 
-    console.log("[Feishu WS] Started, waiting for connection...");
+    console.error("[code-ing] [Feishu WS] Started, waiting for connection...");
 
     wsClient.wsClient = ws;
     return wsClient;
