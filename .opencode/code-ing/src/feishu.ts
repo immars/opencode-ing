@@ -85,13 +85,16 @@ export async function addReaction(
   projectDir: string,
   messageId: string
 ): Promise<boolean> {
+  console.error(`[Feishu] addReaction called for message: ${messageId}`);
   const result = await withLarkClient(projectDir, async (c) => {
     const result = await c.im.messageReaction.create({
       path: { message_id: messageId },
       data: { reaction_type: { emoji_type: REACTION_EMOJI } },
     });
+    console.error(`[Feishu] addReaction API result: code=${result.code}, data=`, JSON.stringify(result.data));
     return result.code === 0;
   }, "[Feishu] Add reaction failed:");
+  console.error(`[Feishu] addReaction final result: ${result}`);
   return result ?? false;
 }
 
@@ -99,24 +102,29 @@ export async function removeReaction(
   projectDir: string,
   messageId: string
 ): Promise<boolean> {
+  console.error(`[Feishu] removeReaction called for message: ${messageId}`);
   const result = await withLarkClient(projectDir, async (c) => {
     const listResult = await c.im.messageReaction.list({
       path: { message_id: messageId },
     });
+    console.error(`[Feishu] removeReaction list result: code=${listResult.code}, items=${listResult.data?.items?.length || 0}`);
     if (listResult.code !== 0 || !listResult.data?.items) {
       return false;
     }
     const ourReaction = listResult.data.items.find(
       (r: any) => r.reaction_type?.emoji_type === REACTION_EMOJI
     );
+    console.error(`[Feishu] Found our reaction:`, ourReaction ? JSON.stringify(ourReaction) : 'none');
     if (!ourReaction || !ourReaction.reaction_id) {
       return true;
     }
     const deleteResult = await c.im.messageReaction.delete({
       path: { message_id: messageId, reaction_id: ourReaction.reaction_id },
     });
+    console.error(`[Feishu] removeReaction delete result: code=${deleteResult.code}`);
     return deleteResult.code === 0;
   }, "[Feishu] Remove reaction failed:");
+  console.error(`[Feishu] removeReaction final result: ${result}`);
   return result ?? false;
 }
 

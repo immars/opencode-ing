@@ -1,6 +1,7 @@
-import { createFeishuClient, sendMessage } from '../feishu.js';
+import { createFeishuClient, sendMessage, addReaction, removeReaction } from '../feishu.js';
 import { getOrCreateManagedSession } from './session.js';
 import { getFeishuContext, formatContextAsPrompt } from '../memory/context.js';
+import { saveContact } from '../contacts.js';
 
 export interface MessageHandlerDeps {
   client: any;
@@ -14,6 +15,8 @@ export async function handleFeishuMessage(
   const { client, directory } = deps;
 
   const chatId = msg.message?.chat_id;
+  const chatType = msg.message?.chat_type;
+  const messageId = msg.message?.message_id;
   const rawContent = msg.message?.content || '';
   let textContent = rawContent;
 
@@ -24,8 +27,17 @@ export async function handleFeishuMessage(
   }
 
   if (textContent && chatId) {
+    if (messageId) {
+      await addReaction(directory, messageId);
+    }
+
+    saveContact(directory, chatId, chatType || 'p2p');
+
     const sessionId = await getOrCreateManagedSession(client);
     if (!sessionId) {
+      if (messageId) {
+        await removeReaction(directory, messageId);
+      }
       return;
     }
 
@@ -67,6 +79,10 @@ export async function handleFeishuMessage(
       }
     } catch (err: any) {
       console.error('Error processing feishu message:', err);
+    } finally {
+      if (messageId) {
+        await removeReaction(directory, messageId);
+      }
     }
   }
 }
