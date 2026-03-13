@@ -2,6 +2,7 @@ import { createFeishuClient, sendMessage, addReaction, removeReaction } from '..
 import { getOrCreateManagedSession } from './session.js';
 import { getFeishuContext, formatContextAsPrompt } from '../memory/context.js';
 import { saveContact } from '../contacts.js';
+import { writeMessageRecord } from '../memory/l0.js';
 
 export interface MessageHandlerDeps {
   client: any;
@@ -32,6 +33,16 @@ export async function handleFeishuMessage(
     }
 
     saveContact(directory, chatId, chatType || 'p2p');
+
+    // Write user message to L0
+    const today = new Date().toISOString().split('T')[0];
+    const timestamp = new Date().toISOString();
+    writeMessageRecord(directory, today, {
+      timestamp,
+      role: 'user',
+      content: textContent,
+      source: 'feishu',
+    });
 
     const sessionId = await getOrCreateManagedSession(client);
     if (!sessionId) {
@@ -71,6 +82,12 @@ export async function handleFeishuMessage(
         if (sendClient) {
           await sendMessage(sendClient, chatId, responseText);
         }
+        writeMessageRecord(directory, today, {
+          timestamp: new Date().toISOString(),
+          role: 'assistant',
+          content: responseText,
+          source: 'feishu',
+        });
       } else {
         const sendClient = createFeishuClient(directory);
         if (sendClient) {
