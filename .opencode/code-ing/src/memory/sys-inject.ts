@@ -20,11 +20,15 @@ export interface VariableContext {
   L2_path: string;
 }
 
-/**
- * Get L0 memory content to be compressed
- */
+function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function getL0Content(projectDir: string): string {
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatLocalDate(new Date());
   const messages = readRecentMessages(projectDir, today, 60);
   
   if (messages.length === 0) {
@@ -40,9 +44,6 @@ export function getL0Content(projectDir: string): string {
   return contents.join('\n');
 }
 
-/**
- * Get L1 memory content
- */
 export function getL1Content(projectDir: string): string {
   const now = new Date();
   const dayOfWeek = now.getDay();
@@ -53,40 +54,42 @@ export function getL1Content(projectDir: string): string {
   const contents: string[] = [];
   const l1Dir = join(projectDir, MEMORY_ROOT_DIR, L1_DIR);
 
+  console.error('[sys-inject] getL1Content - l1Dir:', l1Dir);
+  console.error('[sys-inject] getL1Content - weekStart:', formatLocalDate(weekStart));
+  console.error('[sys-inject] getL1Content - dayOfWeek:', dayOfWeek);
+
   for (let i = 0; i <= dayOfWeek; i++) {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + i);
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatLocalDate(date);
     const filePath = join(l1Dir, `${dateStr}.md`);
+
+    console.error('[sys-inject] getL1Content - checking file:', filePath, 'exists:', existsSync(filePath));
 
     if (existsSync(filePath)) {
       const fileContent = readFileSync(filePath, 'utf-8').trim();
+      console.error('[sys-inject] getL1Content - fileContent length:', fileContent.length);
       if (fileContent) {
         contents.push(`## ${dateStr}\n${fileContent}`);
       }
     }
   }
 
+  console.error('[sys-inject] getL1Content - total contents:', contents.length);
   return contents.join('\n\n');
 }
 
-/**
- * Get L1 file path for writing compressed L0
- */
 export function getL1Path(projectDir: string): string {
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatLocalDate(new Date());
   return join(projectDir, MEMORY_ROOT_DIR, L1_DIR, `${today}.md`);
 }
 
-/**
- * Get L2 file path for writing compressed L1
- */
 export function getL2Path(projectDir: string): string {
   const now = new Date();
   const dayOfWeek = now.getDay();
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - dayOfWeek);
-  const weekStartStr = weekStart.toISOString().split('T')[0];
+  const weekStartStr = formatLocalDate(weekStart);
 
   return join(projectDir, MEMORY_ROOT_DIR, L2_DIR, `${weekStartStr}.md`);
 }
@@ -95,9 +98,14 @@ export function getL2Path(projectDir: string): string {
  * Build variable context for CRON_SYS task substitution
  */
 export function buildVariableContext(projectDir: string): VariableContext {
+  console.error('[sys-inject] buildVariableContext - projectDir:', projectDir);
+  const L0 = getL0Content(projectDir);
+  const L1 = getL1Content(projectDir);
+  console.error('[sys-inject] buildVariableContext - L0 length:', L0.length);
+  console.error('[sys-inject] buildVariableContext - L1 length:', L1.length);
   return {
-    L0: getL0Content(projectDir),
-    L1: getL1Content(projectDir),
+    L0,
+    L1,
     L1_path: getL1Path(projectDir),
     L2_path: getL2Path(projectDir),
   };
@@ -126,13 +134,13 @@ export function hasVariables(content: string): boolean {
 }
 
 export function ensureMemoryPaths(projectDir: string): void {
-  const today = new Date().toISOString().split('T')[0];
+  const today = formatLocalDate(new Date());
   
   const now = new Date();
   const dayOfWeek = now.getDay();
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - dayOfWeek);
-  const weekStartStr = weekStart.toISOString().split('T')[0];
+  const weekStartStr = formatLocalDate(weekStart);
 
   const dirs = [
     join(projectDir, MEMORY_ROOT_DIR, L0_DIR),
