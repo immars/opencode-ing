@@ -1,5 +1,5 @@
 import { createFeishuClient, sendMessage, addReaction, removeReaction } from '../feishu.js';
-import { getOrCreateManagedSession } from './session.js';
+import { getOrCreateManagedSession } from '../memory/session.js';
 import { getFeishuContext, formatContextAsPrompt } from '../memory/context.js';
 import { saveContact } from '../contacts.js';
 import { writeMessageRecord } from '../memory/l0.js';

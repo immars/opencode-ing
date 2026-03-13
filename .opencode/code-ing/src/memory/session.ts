@@ -7,6 +7,34 @@
 import { DEFAULTS } from './constants.js';
 
 const MANAGED_SESSION_NAME = 'Assistant Managed Session';
+const SESSION_MAX_AGE_HOURS = DEFAULTS.SESSION_MAX_AGE_HOURS;
+const SESSION_MAX_KEEP = DEFAULTS.SESSION_MAX_KEEP;
+
+interface SessionInfo {
+  id: string;
+  title: string;
+  created_at: string;
+  total_tokens?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+}
+
+function getSessionAgeHours(createdAt: string): number {
+  const created = new Date(createdAt);
+  const now = new Date();
+  return (now.getTime() - created.getTime()) / (1000 * 60 * 60);
+}
+
+function shouldRotateByAge(createdAt: string): boolean {
+  return getSessionAgeHours(createdAt) >= SESSION_MAX_AGE_HOURS;
+}
+
+function shouldRotateByTokens(session: SessionInfo): boolean {
+  if (!session.total_tokens) return false;
+  const CONTEXT_WINDOW = 128000;
+  const THRESHOLD = 0.8;
+  return session.total_tokens >= CONTEXT_WINDOW * THRESHOLD;
+}
 
 export async function housekeepSessions(
   client: any,
@@ -44,26 +72,49 @@ export async function housekeepSessions(
 
 /**
  * Get or create a managed session
+ * 
+ * Auto-rotates when:
+ * - Session age >= 6 hours
+ * - Token usage >= 80% of context window
+ * 
+ * Uses housekeeping to keep only latest 5 sessions
  */
 export async function getOrCreateManagedSession(client: any): Promise<string | null> {
   try {
     const sessionsResp = await client.session.list();
     const allSessions = sessionsResp?.data || [];
 
-    // Find existing managed session
-    const sessions = allSessions.filter((s: any) => s.title === MANAGED_SESSION_NAME);
+    const currentSessions = allSessions.filter(
+      (s: SessionInfo) => s.title === MANAGED_SESSION_NAME
+    );
 
-    if (sessions.length > 0) {
-      return sessions[0].id;
+    if (currentSessions.length > 0) {
+      const session = currentSessions[0];
+      const needsRotation = shouldRotateByAge(session.created_at) || shouldRotateByTokens(session);
+
+      if (needsRotation) {
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const newTitle = `${MANAGED_SESSION_NAME} ${timestamp}`;
+        
+        await client.session.update({
+          path: { id: session.id },
+          body: { title: newTitle },
+        });
+        
+        console.error('[Session] Rotated:', session.id, '->', newTitle);
+        await housekeepSessions(client, MANAGED_SESSION_NAME, SESSION_MAX_KEEP);
+      } else {
+        return session.id;
+      }
     }
 
-    // Create new managed session
     const newSession = await client.session.create({
       body: { title: MANAGED_SESSION_NAME },
     });
 
     const newSessionId = newSession.data?.id;
     if (newSessionId) {
+      console.error('[Session] Created new managed session:', newSessionId);
       return newSessionId;
     }
 

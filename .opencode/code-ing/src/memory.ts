@@ -8,7 +8,7 @@
 import { loadFeishuConfig } from './config.js';
 import { getFeishuContext, getScheduledContext, formatContextAsPrompt } from './memory/context.js';
 import { startScheduler, stopScheduler, getNextScheduledTime } from './memory/scheduler.js';
-import { getOrCreateManagedSession, rotateOldSessions, deleteOldSessions } from './agent/session.js';
+import { getOrCreateManagedSession, housekeepSessions } from './memory/session.js';
 import { writeDailySummary, readDailySummary, readDailySummaries } from './memory/l1.js';
 import { writeWeeklySummary, readWeeklySummary, readWeeklySummaries } from './memory/l2.js';
 import { readSoul, readPeople, readTasks, readCron, readCronSys, readAllL9 } from './memory/l9.js';
@@ -63,27 +63,20 @@ export async function generateWeeklySummary(projectDir: string, weekStartDate: s
 }
 
 export {
-  // From context
   getFeishuContext,
   getScheduledContext,
   formatContextAsPrompt,
-  // From scheduler
   startScheduler,
   stopScheduler,
   getNextScheduledTime,
-  // From session
   getOrCreateManagedSession,
-  rotateOldSessions,
-  deleteOldSessions,
-  // From l1
+  housekeepSessions,
   writeDailySummary,
   readDailySummary,
   readDailySummaries,
-  // From l2
   writeWeeklySummary,
   readWeeklySummary,
   readWeeklySummaries,
-  // From l9
   readSoul,
   readPeople,
   readTasks,
@@ -91,7 +84,6 @@ export {
   readCronSys,
   readAllL9,
   loadFeishuConfig,
-  // Types
   MessageRecord,
   DailySummary,
   WeeklySummary,
