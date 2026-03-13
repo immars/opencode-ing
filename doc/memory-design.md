@@ -60,7 +60,5 @@ code-ing提供内生的心跳机制。每半个小时（整点，即 xx:00 和 x
 
 # opencode session维护
 
-plugin 关注 session的长度。当session 使用超过一天的时候，或者token数接近模型的上限的时候，就新创建一个session，更名为Assistant Managed Session；老的managed session 滚动改名加后缀 .1, .2, .3; 更老的session 删除。
-
-
+plugin 关注 session的长度。当session 使用超过一天的时候，或者token数接近模型的上限的时候，就新创建一个session，更名为Assistant Managed Session 加上时间后缀；每次创建的时候，
 
