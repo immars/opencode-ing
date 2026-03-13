@@ -150,6 +150,7 @@ async function executeTask(
     await client.session.prompt({
       path: { id: sessionId },
       body: {
+        agent: 'assistant',
         parts: [{ type: 'text', text: contextPrompt }],
       },
     });
@@ -200,6 +201,7 @@ async function executeCronTask(
     await client.session.prompt({
       path: { id: sessionId },
       body: {
+        agent: 'assistant',
         parts: [{ type: 'text', text: contextPrompt }],
       },
     });
@@ -236,6 +238,7 @@ async function executeCronSysTask(
     await client.session.prompt({
       path: { id: sessionId },
       body: {
+        agent: 'assistant',
         parts: [{ type: 'text', text: contextPrompt }],
       },
     });

@@ -120,11 +120,12 @@ ${memoryContext.directoryInfo}
             return;
           }
 
-          // 2. 将消息发给 assistant
+          // 2. 将消息发给 assistant (agent: 'build' 确保发给默认的 Assistant)
           try {
             const result = await client.session.prompt({
               path: { id: sessionId },
               body: {
+                agent: 'assistant',
                 parts: [{ type: "text", text: textContent }],
               },
             });
