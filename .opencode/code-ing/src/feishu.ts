@@ -2,7 +2,7 @@
  * code-ing Feishu Integration Module
  */
 
-import { loadFeishuConfig } from "./memory.js";
+import { loadFeishuConfig } from "./config.js";
 
 export interface FeishuWSClient {
   wsClient?: any;

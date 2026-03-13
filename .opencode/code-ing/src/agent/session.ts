@@ -4,26 +4,21 @@
  * Manages OpenCode session lifecycle
  */
 
-import { DEFAULTS } from './constants.js';
+import { DEFAULTS } from '../memory/constants.js';
 
 const MANAGED_SESSION_NAME = 'Assistant Managed Session';
 
-/**
- * Get or create a managed session
- */
 export async function getOrCreateManagedSession(client: any): Promise<string | null> {
   try {
     const sessionsResp = await client.session.list();
     const allSessions = sessionsResp?.data || [];
 
-    // Find existing managed session
     const sessions = allSessions.filter((s: any) => s.title === MANAGED_SESSION_NAME);
 
     if (sessions.length > 0) {
       return sessions[0].id;
     }
 
-    // Create new managed session
     const newSession = await client.session.create({
       body: { title: MANAGED_SESSION_NAME },
     });
@@ -40,9 +35,6 @@ export async function getOrCreateManagedSession(client: any): Promise<string | n
   }
 }
 
-/**
- * Check if a session should be rotated
- */
 export function shouldRotateSession(
   createdAt: Date,
   maxAgeDays: number = DEFAULTS.SESSION_MAX_AGE_DAYS
@@ -52,9 +44,6 @@ export function shouldRotateSession(
   return ageInDays > maxAgeDays;
 }
 
-/**
- * Rotate old sessions - rename with .1, .2 suffix
- */
 export async function rotateOldSessions(
   client: any,
   maxAgeDays: number = DEFAULTS.SESSION_MAX_AGE_DAYS,
@@ -64,7 +53,6 @@ export async function rotateOldSessions(
     const sessionsResp = await client.session.list();
     const allSessions = sessionsResp?.data || [];
 
-    // Find managed sessions
     const managedSessions = allSessions
       .filter((s: any) => s.title?.startsWith(MANAGED_SESSION_NAME))
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -73,7 +61,6 @@ export async function rotateOldSessions(
       const session = managedSessions[i];
       const createdAt = new Date(session.created_at);
 
-      // If oldest and should rotate
       if (i === 0 && shouldRotateSession(createdAt, maxAgeDays)) {
         const newTitle = `${MANAGED_SESSION_NAME}.1`;
         await client.session.update({
@@ -81,9 +68,7 @@ export async function rotateOldSessions(
           body: { title: newTitle },
         });
       }
-      // Handle existing rolled sessions
       else if (i >= maxRolling) {
-        // Delete oldest beyond max rolling
         await client.session.delete({
           path: { id: session.id },
         });
@@ -94,9 +79,6 @@ export async function rotateOldSessions(
   }
 }
 
-/**
- * Delete old sessions beyond keepCount
- */
 export async function deleteOldSessions(
   client: any,
   keepCount: number = 3
@@ -105,12 +87,10 @@ export async function deleteOldSessions(
     const sessionsResp = await client.session.list();
     const allSessions = sessionsResp?.data || [];
 
-    // Find rolled sessions
     const rolledSessions = allSessions
       .filter((s: any) => s.title?.startsWith(`${MANAGED_SESSION_NAME}.`))
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    // Delete beyond keepCount
     const toDelete = rolledSessions.slice(keepCount);
     for (const session of toDelete) {
       await client.session.delete({

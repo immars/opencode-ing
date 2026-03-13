@@ -12,5 +12,5 @@ export * from './l2.js';
 export * from './l9.js';
 export * from './cron.js';
 export * from './scheduler.js';
-export * from './session.js';
+export * from '../agent/session.js';
 export * from './context.js';
