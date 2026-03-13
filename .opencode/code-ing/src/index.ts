@@ -10,16 +10,19 @@
 
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
-import { buildMemoryContext, loadFeishuConfig } from "./memory.js";
-import { createFeishuClient, createWSClient, closeWSClient, sendMessage } from "./feishu.js";
+import { buildMemoryContext, loadFeishuConfig, startScheduler, stopScheduler, generateDailySummary, generateWeeklySummary, writeMessageRecord, recordContact, readContacts } from "./memory.js";
+
+import { createFeishuClient, createWSClient, closeWSClient, sendMessage, checkConnection, addReaction, removeReaction } from "./feishu.js";
 
 const MANAGED_SESSION_NAME = "Assistant Managed Session";
+const HEARTBEAT_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
 export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
   const { client, directory } = ctx;
+  console.error('[code-ing] directory:', directory);
 
   // 获取目录信息
-  const memoryContext = buildMemoryContext(directory, "current");
+  const memoryContext = buildMemoryContext(directory, "feishu_message");
 
   // 注入记忆的 system prompt
   const systemPromptWithMemory = `
@@ -35,6 +38,38 @@ ${memoryContext.directoryInfo}
 
   // 飞书连接状态
   let feishuWSClient: any = null;
+  let heartbeatTimer: NodeJS.Timeout | null = null;
+
+  // 启动心跳检测
+  const startHeartbeat = () => {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+    }
+    heartbeatTimer = setInterval(async () => {
+      const connected = await checkConnection(directory);
+      if (!connected) {
+        console.error("[Feishu] Connection lost, attempting to reconnect...");
+        await connectFeishu();
+      } else {
+        console.error("[Feishu] Heartbeat: connection OK");
+      }
+    }, HEARTBEAT_INTERVAL);
+  };
+
+  // 启动定时任务调度器
+  startScheduler(directory, async (tasks) => {
+    for (const task of tasks) {
+      if (task.name === "generate-l1" || task.name === "daily-summary") {
+        const today = new Date().toISOString().split("T")[0];
+        await generateDailySummary(directory, today);
+      } else if (task.name === "generate-l2" || task.name === "weekly-summary") {
+        const now = new Date();
+        const weekStart = new Date(now);
+        weekStart.setDate(now.getDate() - now.getDay());
+        await generateWeeklySummary(directory, weekStart.toISOString().split("T")[0]);
+      }
+    }
+  });
 
   // 连接飞书
   const connectFeishu = async (): Promise<string> => {
@@ -62,6 +97,7 @@ ${memoryContext.directoryInfo}
       onMessage: async (msg: any) => {
         // 飞书消息结构是扁平的: msg.message.chat_id, msg.message.content
         const chatId = msg.message?.chat_id;
+        const messageId = msg.message?.message_id;
         const rawContent = msg.message?.content || "";
         let textContent = rawContent;
 
@@ -73,6 +109,22 @@ ${memoryContext.directoryInfo}
         }
 
         if (textContent && chatId) {
+          // Record contact
+          recordContact(directory, chatId, undefined, 'group');
+
+          // Add reaction to indicate processing
+          if (messageId) {
+            await addReaction(directory, messageId);
+          }
+
+          const today = new Date().toISOString().split('T')[0];
+          writeMessageRecord(directory, today, {
+            timestamp: new Date().toISOString(),
+            role: 'user',
+            content: textContent,
+            source: 'feishu',
+          });
+
           // 1. 找到或创建 Managed Session
           const sessionId = await getOrCreateManagedSession();
           if (!sessionId) {
@@ -97,6 +149,12 @@ ${memoryContext.directoryInfo}
             const responseText = textParts.map((p: any) => p.text).join("\n");
 
             if (responseText) {
+              writeMessageRecord(directory, today, {
+                timestamp: new Date().toISOString(),
+                role: 'assistant',
+                content: responseText,
+                source: 'feishu',
+              });
               const sendClient = createFeishuClient(directory);
               if (sendClient) {
                 await sendMessage(sendClient, chatId, responseText);
@@ -107,7 +165,16 @@ ${memoryContext.directoryInfo}
                 await sendMessage(sendClient, chatId, "Assistant finished processing.");
               }
             }
+
+            // Remove reaction after response
+            if (messageId) {
+              await removeReaction(directory, messageId);
+            }
           } catch (err: any) {
+            // Remove reaction on error
+            if (messageId) {
+              await removeReaction(directory, messageId);
+            }
             console.error("Error processing feishu message:", err);
           }
         }
@@ -122,6 +189,27 @@ ${memoryContext.directoryInfo}
 
     if (!feishuWSClient) {
       return "飞书连接失败";
+    }
+
+    startHeartbeat();
+
+    const contacts = readContacts(directory);
+    console.error("[code-ing] Contacts found:", contacts.length);
+    if (contacts.length > 0) {
+      const sorted = contacts.sort((a, b) => 
+        new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime()
+      );
+      const recentContact = sorted[0];
+      console.error("[code-ing] Notifying recent contact:", recentContact.chatId);
+      const feishuClient = createFeishuClient(directory);
+      if (feishuClient) {
+        const sent = await sendMessage(feishuClient, recentContact.chatId, "Assistant 启动成功！");
+        console.error("[code-ing] Message sent:", sent);
+      } else {
+        console.error("[code-ing] No feishu client");
+      }
+    } else {
+      console.error("[code-ing] No contacts to notify");
     }
 
     return "飞书已连接！\n- App ID: " + config.app_id + "\n- Connection: 长连接 (WebSocket)";
@@ -197,8 +285,10 @@ ${memoryContext.directoryInfo}
         description: "获取当前记忆状态",
         args: {},
         async execute(args, context) {
-          const memCtx = buildMemoryContext(directory, "current");
-          return "记忆状态:\n- 长期记忆: " + (memCtx.longTermMemory ? "有内容" : "暂无") + "\n- 短期记忆: " + (memCtx.shortTermMemory ? "有内容" : "暂无") + "\n- 目录: .code-ing/workspace/";
+          const memCtx = buildMemoryContext(directory, "feishu_message");
+          const contacts = readContacts(directory);
+          const contactCount = contacts.length;
+          return "记忆状态:\n- 长期记忆: " + (memCtx.longTermMemory ? "有内容" : "暂无") + "\n- 最近消息: " + memCtx.recentMessages.length + "条\n- 每日摘要: " + memCtx.dailySummaries.length + "条\n- 联系人/群: " + contactCount + "个\n- 目录: .code-ing/workspace/";
         },
       }),
     },
