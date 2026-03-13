@@ -9,7 +9,6 @@ store/*.db
 store/sessions/
 
 # Config with secrets
-config/
 
 # Environment
 .env
