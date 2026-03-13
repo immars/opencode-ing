@@ -4,29 +4,33 @@
  * Handles raw message storage in L0/{date}.md
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { L0_DIR, PATHS, DEFAULTS } from './constants.js';
-import { getMemoryDir, ensureMemoryDir, getMemoryFilePath, readMemoryFile } from './utils.js';
+import { PATHS, DEFAULTS } from './constants.js';
 import type { MessageRecord } from './types.js';
 
-export interface ContactRecord {
-  chatId: string;
-  userId?: string;
-  lastSeen: string;
-  type: 'user' | 'group';
-}
-
+/**
+ * Get the L0 directory path for a project
+ */
 function getL0Dir(projectDir: string): string {
-  return getMemoryDir(projectDir, L0_DIR);
+  return join(projectDir, PATHS.L0);
 }
 
+/**
+ * Ensure L0 directory exists
+ */
 function ensureL0Dir(projectDir: string): void {
-  ensureMemoryDir(projectDir, L0_DIR);
+  const dir = getL0Dir(projectDir);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
 }
 
+/**
+ * Get the L0 file path for a specific date
+ */
 function getL0FilePath(projectDir: string, date: string): string {
-  return getMemoryFilePath(projectDir, L0_DIR, `${date}.md`);
+  return join(getL0Dir(projectDir), `${date}.md`);
 }
 
 /**
@@ -93,61 +97,4 @@ export function readRecentMessages(
  */
 export function readAllMessages(projectDir: string, date: string): MessageRecord[] {
   return readRecentMessages(projectDir, date, Infinity);
-}
-
-/**
- * Get contacts file path (in memory root directory)
- */
-function getContactsFilePath(projectDir: string): string {
-  return join(projectDir, PATHS.MEMORY, 'contacts.json');
-}
-
-/**
- * Read all contacts (users and groups)
- */
-export function readContacts(projectDir: string): ContactRecord[] {
-  const filePath = getContactsFilePath(projectDir);
-  if (!existsSync(filePath)) {
-    return [];
-  }
-  try {
-    const content = readFileSync(filePath, 'utf-8');
-    return JSON.parse(content);
-  } catch (e) {
-    return [];
-  }
-}
-
-/**
- * Write contacts to file
- */
-function writeContacts(projectDir: string, contacts: ContactRecord[]): void {
-  ensureL0Dir(projectDir);
-  const filePath = getContactsFilePath(projectDir);
-  writeFileSync(filePath, JSON.stringify(contacts, null, 2));
-}
-
-/**
- * Record a contact (user or group) from a message
- */
-export function recordContact(
-  projectDir: string,
-  chatId: string,
-  userId?: string,
-  type: 'user' | 'group' = 'user'
-): void {
-  const contacts = readContacts(projectDir);
-  const existingIndex = contacts.findIndex((c) => c.chatId === chatId);
-  const now = new Date().toISOString();
-
-  if (existingIndex >= 0) {
-    contacts[existingIndex].lastSeen = now;
-    if (userId && !contacts[existingIndex].userId) {
-      contacts[existingIndex].userId = userId;
-    }
-  } else {
-    contacts.push({ chatId, userId, lastSeen: now, type });
-  }
-
-  writeContacts(projectDir, contacts);
 }

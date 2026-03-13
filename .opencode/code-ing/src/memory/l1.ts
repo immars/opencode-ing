@@ -4,22 +4,33 @@
  * Handles daily summary generation and storage
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import type { DailySummary } from './types.js';
-import { L1_DIR, DEFAULTS } from './constants.js';
-import { getMemoryDir, ensureMemoryDir, getMemoryFilePath } from './utils.js';
+import { MEMORY_DIR, L1_DIR, DEFAULTS } from './constants.js';
 
+/**
+ * Get L1 directory path
+ */
 function getL1Dir(projectDir: string): string {
-  return getMemoryDir(projectDir, L1_DIR);
+  return join(projectDir, MEMORY_DIR, L1_DIR);
 }
 
+/**
+ * Ensure L1 directory exists
+ */
 function ensureL1Dir(projectDir: string): void {
-  ensureMemoryDir(projectDir, L1_DIR);
+  const dir = getL1Dir(projectDir);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
 }
 
+/**
+ * Get L1 file path for a date
+ */
 function getL1FilePath(projectDir: string, date: string): string {
-  return getMemoryFilePath(projectDir, L1_DIR, `${date}.md`);
+  return join(getL1Dir(projectDir), `${date}.md`);
 }
 
 /**

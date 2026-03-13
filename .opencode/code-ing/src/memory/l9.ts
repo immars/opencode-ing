@@ -4,13 +4,32 @@
  * Handles SOUL.md, PEOPLE.md, TASK.md, CRON.md, CRON_SYS.md
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { L9_FILES } from './constants.js';
-import { getWorkspaceDir, ensureWorkspaceDir, getWorkspaceFilePath, ensureRootDir } from './utils.js';
+import { MEMORY_DIR, L9_FILES } from './constants.js';
 
+/**
+ * Get the root memory directory path
+ */
+function getRootDir(projectDir: string): string {
+  return join(projectDir, MEMORY_DIR);
+}
+
+/**
+ * Ensure root memory directory exists
+ */
+function ensureRootDir(projectDir: string): void {
+  const dir = getRootDir(projectDir);
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+
+/**
+ * Get file path for L9 file
+ */
 function getL9FilePath(projectDir: string, filename: string): string {
-  return getWorkspaceFilePath(projectDir, filename);
+  return join(getRootDir(projectDir), filename);
 }
 
 /**
@@ -130,72 +149,4 @@ export function readAllL9(projectDir: string): {
     cron: readCron(projectDir),
     cronSys: readCronSys(projectDir),
   };
-}
-
-interface FeishuConfig {
-  app_id: string;
-  app_secret: string;
-  message?: {
-    poll_interval?: number;
-    group_ids?: string[];
-  };
-  connection?: {
-    enabled?: boolean;
-    reconnect_interval?: number;
-  };
-}
-
-/**
- * Simple YAML parser for basic key-value pairs
- */
-function parseYaml(content: string): any {
-  const result: any = {};
-  let currentObj: any = result;
-  let currentKey = '';
-  
-  content.split('\n').forEach(line => {
-    const indent = line.search(/\S/);
-    const match = line.match(/^(\s*)(\w+):\s*(.*)$/);
-    
-    if (match && indent >= 0) {
-      const [, , key, value] = match;
-      
-      if (indent === 0) {
-        if (value.trim()) {
-          result[key] = value.trim().replace(/['"]/g, '');
-        } else {
-          result[key] = {};
-          currentObj = result[key];
-        }
-        currentKey = key;
-      } else if (indent === 2) {
-        if (value.trim()) {
-          currentObj[key] = value.trim().replace(/['"]/g, '');
-        } else {
-          currentObj[key] = {};
-        }
-      }
-    }
-  });
-  
-  return result;
-}
-
-/**
- * Load Feishu configuration from .code-ing/config/feishu.yaml
- */
-export function loadFeishuConfig(projectDir: string): FeishuConfig | null {
-  const configPath = join(projectDir, '.code-ing', 'config', 'feishu.yaml');
-  console.error('[code-ing] loadFeishuConfig:', { projectDir, configPath });
-  
-  if (!existsSync(configPath)) {
-    return null;
-  }
-  
-  try {
-    const content = readFileSync(configPath, 'utf-8');
-    return parseYaml(content) as FeishuConfig;
-  } catch (e) {
-    return null;
-  }
 }
