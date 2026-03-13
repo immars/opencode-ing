@@ -9,7 +9,7 @@ import { parseCronFile, getActiveTasks } from './memory/cron.js';
 import type { CronTask } from './memory/types.js';
 import { readCron, readCronSys, readTasks } from './memory/l9.js';
 import { getTaskContext, getCronContext, getCronSysContext } from './memory/context.js';
-import { CronSysSessionManager } from './memory/session.js';
+import { CronSysSessionManager, getOrCreateManagedSession } from './memory/session.js';
 
 let schedulerInterval: NodeJS.Timeout | null = null;
 let isRunning = false;
@@ -124,23 +124,7 @@ async function executeTask(
     console.error('[Scheduler] Executing TASK.md');
 
     const contextPrompt = getTaskContext(projectDir);
-
-    const sessionsResp = await client.session.list();
-    const allSessions = sessionsResp?.data || [];
-
-    const managedSessions = allSessions.filter((s: any) => 
-      s.title === 'Assistant Managed Session'
-    );
-
-    let sessionId: string | null;
-    if (managedSessions.length > 0) {
-      sessionId = managedSessions[0].id;
-    } else {
-      const newSession = await client.session.create({
-        body: { title: 'Assistant Managed Session' },
-      });
-      sessionId = newSession.data?.id;
-    }
+    const sessionId = await getOrCreateManagedSession(client);
 
     if (!sessionId) {
       console.error('[Scheduler] Failed to get or create session for TASK execution');
@@ -176,22 +160,7 @@ async function executeCronTask(
     const taskContent = extractTaskContent(fullCronContent, task.name);
     const contextPrompt = getCronContext(projectDir, taskContent);
 
-    const sessionsResp = await client.session.list();
-    const allSessions = sessionsResp?.data || [];
-
-    const managedSessions = allSessions.filter((s: any) => 
-      s.title === 'Assistant Managed Session'
-    );
-
-    let sessionId: string | null;
-    if (managedSessions.length > 0) {
-      sessionId = managedSessions[0].id;
-    } else {
-      const newSession = await client.session.create({
-        body: { title: 'Assistant Managed Session' },
-      });
-      sessionId = newSession.data?.id;
-    }
+    const sessionId = await getOrCreateManagedSession(client);
 
     if (!sessionId) {
       console.error('[Scheduler] Failed to get or create session for CRON execution');

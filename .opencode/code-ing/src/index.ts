@@ -10,12 +10,11 @@
 
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
-import { buildMemoryContext, loadFeishuConfig, writeMessageRecord, recordContact, readContacts } from "./memory";
+import { buildMemoryContext, loadFeishuConfig, writeMessageRecord, recordContact, readContacts, getOrCreateManagedSession } from "./memory";
 import { startSchedulerWithAgent } from "./scheduler.js";
 
 import { createFeishuClient, createWSClient, closeWSClient, sendMessage, checkConnection, addReaction, removeReaction } from "./feishu.js";
 
-const MANAGED_SESSION_NAME = "Assistant Managed Session";
 const HEARTBEAT_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
 export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
@@ -115,7 +114,7 @@ ${memoryContext.directoryInfo}
           });
 
           // 1. 找到或创建 Managed Session
-          const sessionId = await getOrCreateManagedSession();
+          const sessionId = await getOrCreateManagedSession(client);
           if (!sessionId) {
             return;
           }
@@ -213,34 +212,6 @@ ${memoryContext.directoryInfo}
     }
   }, 2000);
 
-  // 查找或创建专属 session
-  const getOrCreateManagedSession = async (): Promise<string | null> => {
-    try {
-      const sessionsResp = await client.session.list();
-      const allSessions = sessionsResp?.data || [];
-
-      const sessions = allSessions.filter((s: any) => s.title === MANAGED_SESSION_NAME);
-
-      if (sessions.length > 0) {
-        return sessions[0].id;
-      }
-
-      const newSession = await client.session.create({
-        body: { title: MANAGED_SESSION_NAME },
-      });
-
-      const newSessionId = newSession.data?.id;
-      if (newSessionId) {
-        return newSessionId;
-      }
-
-      return null;
-    } catch (err) {
-      return null;
-    }
-  };
-
-  // 返回 hooks，包含自定义工具
   return {
     tool: {
       // 重新加载飞书配置并连接

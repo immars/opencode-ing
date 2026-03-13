@@ -37,6 +37,23 @@ function getOrCreateClient(projectDir: string): { appId: string; appSecret: stri
   return client;
 }
 
+async function withLarkClient<T>(
+  projectDir: string,
+  operation: (c: any) => Promise<T>,
+  errorMsg?: string
+): Promise<T | null> {
+  const client = getOrCreateClient(projectDir);
+  if (!client) return null;
+  try {
+    const lark = await import("@larksuiteoapi/node-sdk");
+    const c = new lark.Client({ appId: client.appId, appSecret: client.appSecret });
+    return await operation(c);
+  } catch (e) {
+    console.error(errorMsg || "[Feishu] Operation failed:", e);
+    return null;
+  }
+}
+
 export async function sendMessage(
   client: { appId: string; appSecret: string },
   chatId: string,
@@ -57,56 +74,38 @@ export async function sendMessage(
 }
 
 export async function checkConnection(projectDir: string): Promise<boolean> {
-  const client = getOrCreateClient(projectDir);
-  if (!client) return false;
-  try {
-    const lark = await import("@larksuiteoapi/node-sdk");
-    const c = new lark.Client({ appId: client.appId, appSecret: client.appSecret });
+  const result = await withLarkClient(projectDir, async (c) => {
     const result = await c.contact.user.get({ path: { user_id: "me" } });
     return result.code === 0;
-  } catch (e) {
-    console.error("[Feishu] Connection check failed:", e);
-    return false;
-  }
+  }, "[Feishu] Connection check failed:");
+  return result ?? false;
 }
 
 export async function addReaction(
   projectDir: string,
   messageId: string
 ): Promise<boolean> {
-  const client = getOrCreateClient(projectDir);
-  if (!client) return false;
-  try {
-    const lark = await import("@larksuiteoapi/node-sdk");
-    const c = new lark.Client({ appId: client.appId, appSecret: client.appSecret });
+  const result = await withLarkClient(projectDir, async (c) => {
     const result = await c.im.messageReaction.create({
       path: { message_id: messageId },
       data: { reaction_type: { emoji_type: REACTION_EMOJI } },
     });
     return result.code === 0;
-  } catch (e) {
-    console.error("[Feishu] Add reaction failed:", e);
-    return false;
-  }
+  }, "[Feishu] Add reaction failed:");
+  return result ?? false;
 }
 
 export async function removeReaction(
   projectDir: string,
   messageId: string
 ): Promise<boolean> {
-  const client = getOrCreateClient(projectDir);
-  if (!client) return false;
-  try {
-    const lark = await import("@larksuiteoapi/node-sdk");
-    const c = new lark.Client({ appId: client.appId, appSecret: client.appSecret });
-    // First, get the list of reactions to find the one to delete
+  const result = await withLarkClient(projectDir, async (c) => {
     const listResult = await c.im.messageReaction.list({
       path: { message_id: messageId },
     });
     if (listResult.code !== 0 || !listResult.data?.items) {
       return false;
     }
-    // Find our reaction
     const ourReaction = listResult.data.items.find(
       (r: any) => r.reaction_type?.emoji_type === REACTION_EMOJI
     );
@@ -117,10 +116,8 @@ export async function removeReaction(
       path: { message_id: messageId, reaction_id: ourReaction.reaction_id },
     });
     return deleteResult.code === 0;
-  } catch (e) {
-    console.error("[Feishu] Remove reaction failed:", e);
-    return false;
-  }
+  }, "[Feishu] Remove reaction failed:");
+  return result ?? false;
 }
 
 export async function createWSClient(

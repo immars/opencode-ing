@@ -200,16 +200,13 @@ export function getCronSysContext(projectDir: string, taskContent: string): stri
   const soul = readSoul(projectDir);
   const people = readPeople(projectDir);
 
-  // Build variable context and substitute
   const variableContext = buildVariableContext(projectDir);
   const substitutedContent = substituteVariables(taskContent, variableContext);
-
-  const now = new Date().toISOString();
 
   const parts: string[] = [];
 
   parts.push('# System Cron Task Execution');
-  parts.push(`Current DateTime: ${now}`);
+  parts.push(`Current DateTime: ${new Date().toISOString()}`);
   parts.push('');
 
   if (soul) {
@@ -234,4 +231,29 @@ export function getCronSysContext(projectDir: string, taskContent: string): stri
   parts.push(`- L2_path: ${variableContext.L2_path}`);
 
   return parts.join('\n');
+}
+
+function buildBaseContext(projectDir: string, title: string): { parts: string[]; now: string } {
+  const soul = readSoul(projectDir);
+  const people = readPeople(projectDir);
+  const now = new Date().toISOString();
+
+  const parts: string[] = [];
+  parts.push(`# ${title}`);
+  parts.push(`Current DateTime: ${now}`);
+  parts.push('');
+
+  if (soul) {
+    parts.push('## Agent Personality (SOUL)');
+    parts.push(soul);
+    parts.push('');
+  }
+
+  if (people) {
+    parts.push('## User Profiles (PEOPLE)');
+    parts.push(people);
+    parts.push('');
+  }
+
+  return { parts, now };
 }

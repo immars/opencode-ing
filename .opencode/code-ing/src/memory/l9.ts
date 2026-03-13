@@ -4,32 +4,13 @@
  * Handles SOUL.md, PEOPLE.md, TASK.md, CRON.md, CRON_SYS.md
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { MEMORY_DIR, WORKSPACE_DIR, L9_FILES } from './constants.js';
+import { L9_FILES } from './constants.js';
+import { getWorkspaceDir, ensureWorkspaceDir, getWorkspaceFilePath, ensureRootDir } from './utils.js';
 
-/**
- * Get the workspace directory for L9 files
- */
-function getRootDir(projectDir: string): string {
-  return join(projectDir, WORKSPACE_DIR);
-}
-
-/**
- * Ensure root memory directory exists
- */
-function ensureRootDir(projectDir: string): void {
-  const dir = getRootDir(projectDir);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-}
-
-/**
- * Get file path for L9 file
- */
 function getL9FilePath(projectDir: string, filename: string): string {
-  return join(getRootDir(projectDir), filename);
+  return getWorkspaceFilePath(projectDir, filename);
 }
 
 /**

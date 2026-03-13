@@ -4,9 +4,10 @@
  * Handles raw message storage in L0/{date}.md
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { PATHS, DEFAULTS } from './constants.js';
+import { L0_DIR, PATHS, DEFAULTS } from './constants.js';
+import { getMemoryDir, ensureMemoryDir, getMemoryFilePath, readMemoryFile } from './utils.js';
 import type { MessageRecord } from './types.js';
 
 export interface ContactRecord {
@@ -16,32 +17,16 @@ export interface ContactRecord {
   type: 'user' | 'group';
 }
 
-/**
- * Get the L0 directory path for a project
- */
 function getL0Dir(projectDir: string): string {
-  return join(projectDir, PATHS.L0);
+  return getMemoryDir(projectDir, L0_DIR);
 }
 
-/**
- * Ensure L0 directory exists
- */
 function ensureL0Dir(projectDir: string): void {
-  const memoryDir = join(projectDir, PATHS.MEMORY);
-  if (!existsSync(memoryDir)) {
-    mkdirSync(memoryDir, { recursive: true });
-  }
-  const dir = getL0Dir(projectDir);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
+  ensureMemoryDir(projectDir, L0_DIR);
 }
 
-/**
- * Get the L0 file path for a specific date
- */
 function getL0FilePath(projectDir: string, date: string): string {
-  return join(getL0Dir(projectDir), `${date}.md`);
+  return getMemoryFilePath(projectDir, L0_DIR, `${date}.md`);
 }
 
 /**
