@@ -35,13 +35,14 @@ function getL2FilePath(projectDir: string, weekStart: string): string {
 
 /**
  * Get week start date (Monday) for a given date
+ * Uses local date components to avoid timezone issues
  */
 export function getWeekStart(date: Date): string {
   const d = new Date(date);
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
-  return d.toISOString().split('T')[0];
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /**
@@ -50,7 +51,7 @@ export function getWeekStart(date: Date): string {
 export function getWeekEnd(weekStart: string): string {
   const d = new Date(weekStart);
   d.setDate(d.getDate() + 6);
-  return d.toISOString().split('T')[0];
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /**
@@ -76,6 +77,7 @@ ${summary.summary}
 
 /**
  * Read weekly summary from L2
+ * Returns the raw file content as summary for maximum flexibility
  */
 export function readWeeklySummary(projectDir: string, weekStart: string): WeeklySummary | null {
   const filePath = getL2FilePath(projectDir, weekStart);
@@ -84,50 +86,12 @@ export function readWeeklySummary(projectDir: string, weekStart: string): Weekly
   }
 
   const content = readFileSync(filePath, 'utf-8');
-  return parseWeeklySummary(weekStart, content);
-}
-
-/**
- * Parse weekly summary content
- */
-function parseWeeklySummary(weekStart: string, content: string): WeeklySummary {
-  const topics: string[] = [];
-  let summary = '';
   const weekEnd = getWeekEnd(weekStart);
-
-  const lines = content.split('\n');
-  let inTopics = false;
-  let inSummary = false;
-
-  for (const line of lines) {
-    if (line.startsWith('## Topics')) {
-      inTopics = true;
-      inSummary = false;
-      continue;
-    }
-    if (line.startsWith('## Summary')) {
-      inTopics = false;
-      inSummary = true;
-      continue;
-    }
-    if (line.startsWith('---')) {
-      inSummary = false;
-      continue;
-    }
-
-    if (inTopics && line.startsWith('- ')) {
-      topics.push(line.substring(2));
-    }
-    if (inSummary && line.trim()) {
-      summary += line + '\n';
-    }
-  }
-
   return {
     week_start: weekStart,
     week_end: weekEnd,
-    topics,
-    summary: summary.trim(),
+    topics: [],
+    summary: content.trim(),
     max_bytes: DEFAULTS.L2_SUMMARY_MAX_BYTES,
   };
 }

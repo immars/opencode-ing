@@ -60,13 +60,15 @@ ${memoryContext.directoryInfo}
   startScheduler(directory, async (tasks) => {
     for (const task of tasks) {
       if (task.name === 'generate-l1' || task.name === 'daily-summary') {
-        const today = new Date().toISOString().split('T')[0];
-        await generateDailySummary(directory, today);
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+        await generateDailySummary(directory, todayStr);
       } else if (task.name === 'generate-l2' || task.name === 'weekly-summary') {
         const now = new Date();
         const weekStart = new Date(now);
         weekStart.setDate(now.getDate() - now.getDay());
-        await generateWeeklySummary(directory, weekStart.toISOString().split('T')[0]);
+        const weekStartStr = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
+        await generateWeeklySummary(directory, weekStartStr);
       }
     }
   });

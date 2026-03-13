@@ -63,8 +63,9 @@ export function buildMemoryContext(
   const longTermMemory = readAllL9(projectDir);
 
   // Read recent messages from L0
-  const today = new Date().toISOString().split('T')[0];
-  const recentMessages = readRecentMessages(projectDir, today, 60);
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const recentMessages = readRecentMessages(projectDir, todayStr, 60);
 
   // Read L1 summaries (last 3 days)
   const dailySummaries = readDailySummaries(projectDir, 3);

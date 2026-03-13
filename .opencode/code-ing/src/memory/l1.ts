@@ -55,6 +55,7 @@ ${summary.summary}
 
 /**
  * Read daily summary from L1
+ * Returns the raw file content as summary for maximum flexibility
  */
 export function readDailySummary(projectDir: string, date: string): DailySummary | null {
   const filePath = getL1FilePath(projectDir, date);
@@ -63,48 +64,10 @@ export function readDailySummary(projectDir: string, date: string): DailySummary
   }
 
   const content = readFileSync(filePath, 'utf-8');
-  return parseDailySummary(date, content);
-}
-
-/**
- * Parse daily summary content
- */
-function parseDailySummary(date: string, content: string): DailySummary {
-  const topics: string[] = [];
-  let summary = '';
-
-  const lines = content.split('\n');
-  let inTopics = false;
-  let inSummary = false;
-
-  for (const line of lines) {
-    if (line.startsWith('## Topics')) {
-      inTopics = true;
-      inSummary = false;
-      continue;
-    }
-    if (line.startsWith('## Summary')) {
-      inTopics = false;
-      inSummary = true;
-      continue;
-    }
-    if (line.startsWith('---')) {
-      inSummary = false;
-      continue;
-    }
-
-    if (inTopics && line.startsWith('- ')) {
-      topics.push(line.substring(2));
-    }
-    if (inSummary && line.trim()) {
-      summary += line + '\n';
-    }
-  }
-
   return {
     date,
-    topics,
-    summary: summary.trim(),
+    topics: [],
+    summary: content.trim(),
     max_bytes: DEFAULTS.L1_SUMMARY_MAX_BYTES,
   };
 }
@@ -119,7 +82,7 @@ export function readDailySummaries(projectDir: string, days: number = 3): DailyS
   for (let i = 0; i < days; i++) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
     const summary = readDailySummary(projectDir, dateStr);
     if (summary) {

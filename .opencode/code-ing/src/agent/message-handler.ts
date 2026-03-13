@@ -35,10 +35,10 @@ export async function handleFeishuMessage(
 
     saveContact(directory, chatId, chatType || 'p2p');
 
-    // Write user message to L0
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const timestamp = new Date().toISOString();
-    writeMessageRecord(directory, today, {
+    writeMessageRecord(directory, todayStr, {
       timestamp,
       role: 'user',
       content: textContent,
@@ -84,7 +84,7 @@ export async function handleFeishuMessage(
           const pretty = prettifyMessage(responseText);
           await sendMessage(sendClient, chatId, pretty.text, pretty.useRichText ? pretty.richContent : undefined);
         }
-        writeMessageRecord(directory, today, {
+        writeMessageRecord(directory, todayStr, {
           timestamp: new Date().toISOString(),
           role: 'assistant',
           content: responseText,
