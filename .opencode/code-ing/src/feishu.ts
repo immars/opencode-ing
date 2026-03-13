@@ -54,17 +54,36 @@ async function withLarkClient<T>(
   }
 }
 
+export interface RichTextContent {
+  zh_cn: {
+    title: string;
+    content: Array<Array<{ tag: string; text?: string; href?: string; style?: string[] }>>;
+  };
+}
+
 export async function sendMessage(
   client: { appId: string; appSecret: string },
   chatId: string,
-  content: string
+  content: string,
+  richContent?: RichTextContent
 ): Promise<boolean> {
   try {
     const lark = await import("@larksuiteoapi/node-sdk");
     const c = new lark.Client({ appId: client.appId, appSecret: client.appSecret });
+    
+    let msgType = "text";
+    let msgContent: string;
+    
+    if (richContent) {
+      msgType = "post";
+      msgContent = JSON.stringify(richContent);
+    } else {
+      msgContent = JSON.stringify({ text: content });
+    }
+    
     const result = await c.im.message.create({
       params: { receive_id_type: "chat_id" },
-      data: { receive_id: chatId, msg_type: "text", content: JSON.stringify({ text: content }) },
+      data: { receive_id: chatId, msg_type: msgType, content: msgContent },
     });
     return result.code === 0;
   } catch (e) {

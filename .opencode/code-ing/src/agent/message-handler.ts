@@ -3,6 +3,7 @@ import { getOrCreateManagedSession } from './session.js';
 import { getFeishuContext, formatContextAsPrompt } from '../memory/context.js';
 import { saveContact } from '../contacts.js';
 import { writeMessageRecord } from '../memory/l0.js';
+import { prettifyMessage } from '../prettifier.js';
 
 export interface MessageHandlerDeps {
   client: any;
@@ -80,7 +81,8 @@ export async function handleFeishuMessage(
       if (responseText) {
         const sendClient = createFeishuClient(directory);
         if (sendClient) {
-          await sendMessage(sendClient, chatId, responseText);
+          const pretty = prettifyMessage(responseText);
+          await sendMessage(sendClient, chatId, pretty.text, pretty.useRichText ? pretty.richContent : undefined);
         }
         writeMessageRecord(directory, today, {
           timestamp: new Date().toISOString(),
