@@ -121,3 +121,119 @@ export async function deleteOldSessions(
     console.error('Failed to delete old sessions:', err);
   }
 }
+
+/**
+ * Cron Sys Session Manager
+ * 
+ * Manages "cron sys session" - creates new session for each CRON_SYS task execution,
+ * rolling keeps 5 history sessions.
+ */
+export class CronSysSessionManager {
+  private client: any;
+  private baseName = 'cron sys session';
+  private maxRolling = 5;
+
+  constructor(client: any) {
+    this.client = client;
+  }
+
+  /**
+   * Create a new cron sys session for task execution
+   * Rolls old sessions before creating new one
+   */
+  async createSession(): Promise<string | null> {
+    try {
+      // First, roll old sessions
+      await this.rollOldSessions();
+
+      // Create new session with timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const sessionTitle = `${this.baseName} ${timestamp}`;
+
+      const newSession = await this.client.session.create({
+        body: { title: sessionTitle },
+      });
+
+      const newSessionId = newSession.data?.id;
+      if (newSessionId) {
+        console.error('[CronSysSession] Created new session:', sessionTitle);
+        return newSessionId;
+      }
+
+      return null;
+    } catch (err) {
+      console.error('[CronSysSession] Failed to create session:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Roll old sessions - rename with .1, .2, etc. suffix
+   * Keeps maxRolling history sessions
+   */
+  private async rollOldSessions(): Promise<void> {
+    try {
+      const sessionsResp = await this.client.session.list();
+      const allSessions = sessionsResp?.data || [];
+
+      // Find cron sys sessions (current and rolled)
+      const cronSessions = allSessions
+        .filter((s: any) => s.title?.startsWith(this.baseName))
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      // If we have more than maxRolling sessions, delete the oldest ones
+      if (cronSessions.length >= this.maxRolling) {
+        const toDelete = cronSessions.slice(this.maxRolling - 1);
+        for (const session of toDelete) {
+          try {
+            await this.client.session.delete({
+              path: { id: session.id },
+            });
+            console.error('[CronSysSession] Deleted old session:', session.title);
+          } catch (e) {
+            // Continue even if one delete fails
+          }
+        }
+      }
+
+      // Roll the oldest active session to .1
+      if (cronSessions.length > 0) {
+        const oldestSession = cronSessions[cronSessions.length - 1];
+        const newTitle = `${this.baseName}.1`;
+        try {
+          await this.client.session.update({
+            path: { id: oldestSession.id },
+            body: { title: newTitle },
+          });
+          console.error('[CronSysSession] Rolled session to:', newTitle);
+        } catch (e) {
+          // Continue even if rename fails
+        }
+      }
+    } catch (err) {
+      console.error('[CronSysSession] Failed to roll old sessions:', err);
+    }
+  }
+
+  /**
+   * Get the current active cron sys session (if exists)
+   */
+  async getCurrentSession(): Promise<string | null> {
+    try {
+      const sessionsResp = await this.client.session.list();
+      const allSessions = sessionsResp?.data || [];
+
+      // Find current cron sys session (without .N suffix)
+      const currentSessions = allSessions
+        .filter((s: any) => s.title?.startsWith(this.baseName) && !s.title?.match(/\.\d+$/));
+
+      if (currentSessions.length > 0) {
+        return currentSessions[0].id;
+      }
+
+      return null;
+    } catch (err) {
+      return null;
+    }
+  }
+}

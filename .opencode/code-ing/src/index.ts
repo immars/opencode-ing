@@ -10,7 +10,8 @@
 
 import type { Plugin, Hooks } from "@opencode-ai/plugin";
 import { tool } from "@opencode-ai/plugin";
-import { buildMemoryContext, loadFeishuConfig, startScheduler, stopScheduler, generateDailySummary, generateWeeklySummary, writeMessageRecord, recordContact, readContacts } from "./memory.js";
+import { buildMemoryContext, loadFeishuConfig, writeMessageRecord, recordContact, readContacts } from "./memory";
+import { startSchedulerWithAgent } from "./scheduler.js";
 
 import { createFeishuClient, createWSClient, closeWSClient, sendMessage, checkConnection, addReaction, removeReaction } from "./feishu.js";
 
@@ -56,20 +57,8 @@ ${memoryContext.directoryInfo}
     }, HEARTBEAT_INTERVAL);
   };
 
-  // 启动定时任务调度器
-  startScheduler(directory, async (tasks) => {
-    for (const task of tasks) {
-      if (task.name === "generate-l1" || task.name === "daily-summary") {
-        const today = new Date().toISOString().split("T")[0];
-        await generateDailySummary(directory, today);
-      } else if (task.name === "generate-l2" || task.name === "weekly-summary") {
-        const now = new Date();
-        const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - now.getDay());
-        await generateWeeklySummary(directory, weekStart.toISOString().split("T")[0]);
-      }
-    }
-  });
+  // 启动定时任务调度器 (with agent execution)
+  startSchedulerWithAgent(directory, client);
 
   // 连接飞书
   const connectFeishu = async (): Promise<string> => {

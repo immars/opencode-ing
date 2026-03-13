@@ -5,9 +5,10 @@
  * New implementation: src/memory/
  */
 
-import { getFeishuContext, getScheduledContext, formatContextAsPrompt } from './memory/context.js';
-import { startScheduler, stopScheduler, getNextScheduledTime } from './memory/scheduler.js';
-import { getOrCreateManagedSession, rotateOldSessions, deleteOldSessions } from './memory/session.js';
+import { getFeishuContext, getScheduledContext, formatContextAsPrompt, getTaskContext, getCronContext, getCronSysContext } from './memory/context.js';
+import { startScheduler, startSchedulerWithAgent, stopScheduler, getNextScheduledTime } from './scheduler.js';
+import { getOrCreateManagedSession, rotateOldSessions, deleteOldSessions, CronSysSessionManager } from './memory/session.js';
+import { buildVariableContext, substituteVariables, hasVariables } from './memory/sys-inject.js';
 import { writeDailySummary, readDailySummary, readDailySummaries } from './memory/l1.js';
 import { writeWeeklySummary, readWeeklySummary, readWeeklySummaries } from './memory/l2.js';
 import { writeMessageRecord, readRecentMessages, readContacts, recordContact } from './memory/l0.js';
@@ -69,12 +70,18 @@ export {
   formatContextAsPrompt,
   // From scheduler
   startScheduler,
+  startSchedulerWithAgent,
   stopScheduler,
   getNextScheduledTime,
   // From session
   getOrCreateManagedSession,
   rotateOldSessions,
   deleteOldSessions,
+  CronSysSessionManager,
+  // From sys-inject
+  buildVariableContext,
+  substituteVariables,
+  hasVariables,
   // From l1
   writeDailySummary,
   readDailySummary,
@@ -89,6 +96,7 @@ export {
   readContacts,
   recordContact,
   // From l9
+  readSoul,
   readPeople,
   readTasks,
   readCron,

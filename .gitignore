@@ -8,8 +8,8 @@ dist/
 store/*.db
 store/sessions/
 
-# Config with secrets (use .example as template)
-config/agent.yaml
+# Config with secrets
+config/
 
 # Environment
 .env
@@ -26,3 +26,6 @@ Thumbs.db
 
 # Sisyphus planning (internal)
 .sisyphus/
+
+
+.code-ing/
