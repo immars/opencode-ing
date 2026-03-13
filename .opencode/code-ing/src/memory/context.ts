@@ -122,19 +122,17 @@ export function formatContextAsPrompt(context: MemoryContext): string {
     parts.push('## Current Tasks\n' + context.longTermMemory.tasks);
   }
 
-  // Daily summaries
-  if (context.dailySummaries.length > 0) {
-    parts.push('## Recent Daily Summaries\n');
-    for (const summary of context.dailySummaries) {
-      parts.push(`### ${summary.date}\n${summary.summary}`);
-    }
-  }
-
-  // Weekly summaries
   if (context.weeklySummaries.length > 0) {
     parts.push('## Weekly Summaries\n');
     for (const summary of context.weeklySummaries) {
       parts.push(`### ${summary.week_start} - ${summary.week_end}\n${summary.summary}`);
+    }
+  }
+
+  if (context.dailySummaries.length > 0) {
+    parts.push('## Recent Daily Summaries\n');
+    for (const summary of context.dailySummaries) {
+      parts.push(`### ${summary.date}\n${summary.summary}`);
     }
   }
 

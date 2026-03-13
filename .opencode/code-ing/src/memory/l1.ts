@@ -4,7 +4,7 @@
  * Handles daily summary generation and storage
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
 import { join } from 'path';
 import type { DailySummary } from './types.js';
 import { MEMORY_ROOT_DIR, L1_DIR, DEFAULTS } from './constants.js';
@@ -75,16 +75,22 @@ export function readDailySummary(projectDir: string, date: string): DailySummary
 /**
  * Read multiple daily summaries (most recent first)
  */
-export function readDailySummaries(projectDir: string, days: number = 3): DailySummary[] {
+export function readDailySummaries(projectDir: string, count: number = 3): DailySummary[] {
+  const dir = getL1Dir(projectDir);
+  if (!existsSync(dir)) {
+    return [];
+  }
+
+  const files = readdirSync(dir)
+    .filter(f => f.endsWith('.md'))
+    .sort()
+    .reverse()
+    .slice(0, count);
+
   const summaries: DailySummary[] = [];
-  const today = new Date();
-
-  for (let i = 0; i < days; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-
-    const summary = readDailySummary(projectDir, dateStr);
+  for (const file of files) {
+    const date = file.replace('.md', '');
+    const summary = readDailySummary(projectDir, date);
     if (summary) {
       summaries.push(summary);
     }

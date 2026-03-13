@@ -4,7 +4,7 @@
  * Handles weekly summary generation and storage
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
 import { join } from 'path';
 import type { WeeklySummary } from './types.js';
 import { MEMORY_ROOT_DIR, L2_DIR, DEFAULTS } from './constants.js';
@@ -99,15 +99,21 @@ export function readWeeklySummary(projectDir: string, weekStart: string): Weekly
 /**
  * Read multiple weekly summaries (most recent first)
  */
-export function readWeeklySummaries(projectDir: string, weeks: number = 3): WeeklySummary[] {
+export function readWeeklySummaries(projectDir: string, count: number = 3): WeeklySummary[] {
+  const dir = getL2Dir(projectDir);
+  if (!existsSync(dir)) {
+    return [];
+  }
+
+  const files = readdirSync(dir)
+    .filter(f => f.endsWith('.md'))
+    .sort()
+    .reverse()
+    .slice(0, count);
+
   const summaries: WeeklySummary[] = [];
-  const today = new Date();
-
-  for (let i = 0; i < weeks; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i * 7);
-    const weekStart = getWeekStart(date);
-
+  for (const file of files) {
+    const weekStart = file.replace('.md', '');
     const summary = readWeeklySummary(projectDir, weekStart);
     if (summary) {
       summaries.push(summary);
