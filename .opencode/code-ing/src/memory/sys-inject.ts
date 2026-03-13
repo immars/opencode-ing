@@ -8,12 +8,12 @@
  * - L2_path: L2 file path for writing compressed L1
  */
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { readRecentMessages } from './l0.js';
 import { readDailySummaries } from './l1.js';
 import { readWeeklySummaries } from './l2.js';
-import { PATHS, MEMORY_ROOT_DIR, L1_DIR, L2_DIR } from './constants.js';
+import { PATHS, MEMORY_ROOT_DIR, L1_DIR, L2_DIR, L0_DIR } from './constants.js';
 
 export interface VariableContext {
   L0: string;
@@ -115,4 +115,36 @@ export function substituteVariables(
 
 export function hasVariables(content: string): boolean {
   return /\{L0(_content)?\}|\{L1(_content)?\}|\{L1_path\}|\{L2_path\}/.test(content);
+}
+
+export function ensureMemoryPaths(projectDir: string): void {
+  const today = new Date().toISOString().split('T')[0];
+  
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - dayOfWeek);
+  const weekStartStr = weekStart.toISOString().split('T')[0];
+
+  const dirs = [
+    join(projectDir, MEMORY_ROOT_DIR, L0_DIR),
+    join(projectDir, MEMORY_ROOT_DIR, L1_DIR),
+    join(projectDir, MEMORY_ROOT_DIR, L2_DIR),
+  ];
+
+  for (const dir of dirs) {
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+  }
+
+  const l0File = join(projectDir, MEMORY_ROOT_DIR, L0_DIR, `${today}.md`);
+  const l1File = join(projectDir, MEMORY_ROOT_DIR, L1_DIR, `${today}.md`);
+  const l2File = join(projectDir, MEMORY_ROOT_DIR, L2_DIR, `${weekStartStr}.md`);
+
+  for (const file of [l0File, l1File, l2File]) {
+    if (!existsSync(file)) {
+      writeFileSync(file, '');
+    }
+  }
 }

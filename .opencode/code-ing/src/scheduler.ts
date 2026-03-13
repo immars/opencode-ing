@@ -10,6 +10,7 @@ import type { CronTask } from './memory/types.js';
 import { readCron, readCronSys, readTasks } from './memory/l9.js';
 import { getTaskContext, getCronContext, getCronSysContext } from './memory/context.js';
 import { CronSysSessionManager, getOrCreateManagedSession } from './memory/session.js';
+import { ensureMemoryPaths } from './memory/sys-inject.js';
 
 let schedulerInterval: NodeJS.Timeout | null = null;
 let isRunning = false;
@@ -191,6 +192,8 @@ async function executeCronSysTask(
   fullCronSysContent: string
 ): Promise<void> {
   try {
+    ensureMemoryPaths(projectDir);
+    
     console.error('[Scheduler] Executing CRON_SYS task:', task.name);
 
     const taskContent = extractTaskContent(fullCronSysContent, task.name);
