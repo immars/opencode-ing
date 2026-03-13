@@ -8,6 +8,40 @@ import { DEFAULTS } from './constants.js';
 
 const MANAGED_SESSION_NAME = 'Assistant Managed Session';
 
+export async function housekeepSessions(
+  client: any,
+  prefix: string,
+  maxKeep: number = 5
+): Promise<void> {
+  try {
+    const sessionsResp = await client.session.list();
+    const allSessions = sessionsResp?.data || [];
+
+    const matched = allSessions
+      .filter((s: any) => s.title?.startsWith(prefix))
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    const toDelete = matched.slice(maxKeep);
+
+    if (toDelete.length > 0) {
+      console.error(`[Session] Housekeeping "${prefix}": ${matched.length} found, deleting ${toDelete.length}`);
+    }
+
+    for (const session of toDelete) {
+      try {
+        await client.session.delete({
+          path: { id: session.id },
+        });
+        console.error('[Session] Deleted:', session.title);
+      } catch (e) {
+        console.error('[Session] Failed to delete:', session.title, e);
+      }
+    }
+  } catch (err) {
+    console.error('[Session] Housekeeping failed:', err);
+  }
+}
+
 /**
  * Get or create a managed session
  */
@@ -131,22 +165,16 @@ export async function deleteOldSessions(
 export class CronSysSessionManager {
   private client: any;
   private baseName = 'cron sys session';
-  private maxRolling = 5;
+  private maxKeep = 5;
 
   constructor(client: any) {
     this.client = client;
   }
 
-  /**
-   * Create a new cron sys session for task execution
-   * Rolls old sessions before creating new one
-   */
   async createSession(): Promise<string | null> {
     try {
-      // First, roll old sessions
-      await this.rollOldSessions();
+      await this.housekeeping();
 
-      // Create new session with timestamp
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const sessionTitle = `${this.baseName} ${timestamp}`;
 
@@ -156,7 +184,7 @@ export class CronSysSessionManager {
 
       const newSessionId = newSession.data?.id;
       if (newSessionId) {
-        console.error('[CronSysSession] Created new session:', sessionTitle);
+        console.error('[CronSysSession] Created:', sessionTitle);
         return newSessionId;
       }
 
@@ -167,63 +195,39 @@ export class CronSysSessionManager {
     }
   }
 
-  /**
-   * Roll old sessions - rename with .1, .2, etc. suffix
-   * Keeps maxRolling history sessions
-   */
-  private async rollOldSessions(): Promise<void> {
+  private async housekeeping(): Promise<void> {
     try {
       const sessionsResp = await this.client.session.list();
       const allSessions = sessionsResp?.data || [];
 
-      // Find cron sys sessions (current and rolled)
       const cronSessions = allSessions
         .filter((s: any) => s.title?.startsWith(this.baseName))
         .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-      // If we have more than maxRolling sessions, delete the oldest ones
-      if (cronSessions.length >= this.maxRolling) {
-        const toDelete = cronSessions.slice(this.maxRolling - 1);
-        for (const session of toDelete) {
-          try {
-            await this.client.session.delete({
-              path: { id: session.id },
-            });
-            console.error('[CronSysSession] Deleted old session:', session.title);
-          } catch (e) {
-            // Continue even if one delete fails
-          }
-        }
-      }
+      const toDelete = cronSessions.slice(this.maxKeep);
+      
+      console.error(`[CronSysSession] Housekeeping: ${cronSessions.length} sessions, deleting ${toDelete.length}`);
 
-      // Roll the oldest active session to .1
-      if (cronSessions.length > 0) {
-        const oldestSession = cronSessions[cronSessions.length - 1];
-        const newTitle = `${this.baseName}.1`;
+      for (const session of toDelete) {
         try {
-          await this.client.session.update({
-            path: { id: oldestSession.id },
-            body: { title: newTitle },
+          await this.client.session.delete({
+            path: { id: session.id },
           });
-          console.error('[CronSysSession] Rolled session to:', newTitle);
+          console.error('[CronSysSession] Deleted:', session.title);
         } catch (e) {
-          // Continue even if rename fails
+          console.error('[CronSysSession] Failed to delete:', session.title, e);
         }
       }
     } catch (err) {
-      console.error('[CronSysSession] Failed to roll old sessions:', err);
+      console.error('[CronSysSession] Housekeeping failed:', err);
     }
   }
 
-  /**
-   * Get the current active cron sys session (if exists)
-   */
   async getCurrentSession(): Promise<string | null> {
     try {
       const sessionsResp = await this.client.session.list();
       const allSessions = sessionsResp?.data || [];
 
-      // Find current cron sys session (without .N suffix)
       const currentSessions = allSessions
         .filter((s: any) => s.title?.startsWith(this.baseName) && !s.title?.match(/\.\d+$/));
 
