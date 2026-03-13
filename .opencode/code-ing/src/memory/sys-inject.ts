@@ -11,8 +11,6 @@
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { readRecentMessages } from './l0.js';
-import { readDailySummaries } from './l1.js';
-import { readWeeklySummaries } from './l2.js';
 import { PATHS, MEMORY_ROOT_DIR, L1_DIR, L2_DIR, L0_DIR } from './constants.js';
 
 export interface VariableContext {
@@ -26,21 +24,17 @@ export interface VariableContext {
  * Get L0 memory content to be compressed
  */
 export function getL0Content(projectDir: string): string {
-  const today = new Date();
+  const today = new Date().toISOString().split('T')[0];
+  const messages = readRecentMessages(projectDir, today, 60);
+  
+  if (messages.length === 0) {
+    return '';
+  }
+
   const contents: string[] = [];
-
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-    const dateStr = date.toISOString().split('T')[0];
-
-    const messages = readRecentMessages(projectDir, dateStr, 60);
-    if (messages.length > 0) {
-      contents.push(`## ${dateStr}`);
-      for (const msg of messages) {
-        contents.push(`- [${msg.timestamp}] ${msg.role}: ${msg.content}`);
-      }
-    }
+  contents.push(`## ${today}`);
+  for (const msg of messages) {
+    contents.push(`- [${msg.timestamp}] ${msg.role}: ${msg.content}`);
   }
 
   return contents.join('\n');
@@ -50,16 +44,30 @@ export function getL0Content(projectDir: string): string {
  * Get L1 memory content
  */
 export function getL1Content(projectDir: string): string {
-  const summaries = readDailySummaries(projectDir, 7);
-  const contents: string[] = [];
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - dayOfWeek);
+  weekStart.setHours(0, 0, 0, 0);
 
-  for (const summary of summaries) {
-    contents.push(`## ${summary.date}`);
-    contents.push(`Topics: ${summary.topics.join(', ')}`);
-    contents.push(`Summary: ${summary.summary}`);
+  const contents: string[] = [];
+  const l1Dir = join(projectDir, MEMORY_ROOT_DIR, L1_DIR);
+
+  for (let i = 0; i <= dayOfWeek; i++) {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + i);
+    const dateStr = date.toISOString().split('T')[0];
+    const filePath = join(l1Dir, `${dateStr}.md`);
+
+    if (existsSync(filePath)) {
+      const fileContent = readFileSync(filePath, 'utf-8').trim();
+      if (fileContent) {
+        contents.push(`## ${dateStr}\n${fileContent}`);
+      }
+    }
   }
 
-  return contents.join('\n');
+  return contents.join('\n\n');
 }
 
 /**
