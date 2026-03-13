@@ -153,6 +153,7 @@ export async function createWSClient(
     const ws = new lark.WSClient({
       appId: client.appId,
       appSecret: client.appSecret,
+      loggerLevel: lark.LoggerLevel.WARN,
     });
 
     // 启动长连接
