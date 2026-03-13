@@ -125,10 +125,6 @@ export async function getOrCreateManagedSession(
         const contextPrompt = formatContextAsPrompt(memoryContext);
         
         if (contextPrompt) {
-          console.error('=== INJECTED CONTEXT START ===');
-          console.error(contextPrompt);
-          console.error('=== INJECTED CONTEXT END ===');
-          
           await client.session.prompt({
             path: { id: newSessionId },
             body: {

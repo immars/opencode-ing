@@ -54,28 +54,20 @@ export function getL1Content(projectDir: string): string {
   const contents: string[] = [];
   const l1Dir = join(projectDir, MEMORY_ROOT_DIR, L1_DIR);
 
-  console.error('[sys-inject] getL1Content - l1Dir:', l1Dir);
-  console.error('[sys-inject] getL1Content - weekStart:', formatLocalDate(weekStart));
-  console.error('[sys-inject] getL1Content - dayOfWeek:', dayOfWeek);
-
   for (let i = 0; i <= dayOfWeek; i++) {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + i);
     const dateStr = formatLocalDate(date);
     const filePath = join(l1Dir, `${dateStr}.md`);
 
-    console.error('[sys-inject] getL1Content - checking file:', filePath, 'exists:', existsSync(filePath));
-
     if (existsSync(filePath)) {
       const fileContent = readFileSync(filePath, 'utf-8').trim();
-      console.error('[sys-inject] getL1Content - fileContent length:', fileContent.length);
       if (fileContent) {
         contents.push(`## ${dateStr}\n${fileContent}`);
       }
     }
   }
 
-  console.error('[sys-inject] getL1Content - total contents:', contents.length);
   return contents.join('\n\n');
 }
 
@@ -98,11 +90,8 @@ export function getL2Path(projectDir: string): string {
  * Build variable context for CRON_SYS task substitution
  */
 export function buildVariableContext(projectDir: string): VariableContext {
-  console.error('[sys-inject] buildVariableContext - projectDir:', projectDir);
   const L0 = getL0Content(projectDir);
   const L1 = getL1Content(projectDir);
-  console.error('[sys-inject] buildVariableContext - L0 length:', L0.length);
-  console.error('[sys-inject] buildVariableContext - L1 length:', L1.length);
   return {
     L0,
     L1,

@@ -104,16 +104,13 @@ export async function addReaction(
   projectDir: string,
   messageId: string
 ): Promise<boolean> {
-  console.error(`[Feishu] addReaction called for message: ${messageId}`);
   const result = await withLarkClient(projectDir, async (c) => {
     const result = await c.im.messageReaction.create({
       path: { message_id: messageId },
       data: { reaction_type: { emoji_type: REACTION_EMOJI } },
     });
-    console.error(`[Feishu] addReaction API result: code=${result.code}, data=`, JSON.stringify(result.data));
     return result.code === 0;
   }, "[Feishu] Add reaction failed:");
-  console.error(`[Feishu] addReaction final result: ${result}`);
   return result ?? false;
 }
 
@@ -121,29 +118,24 @@ export async function removeReaction(
   projectDir: string,
   messageId: string
 ): Promise<boolean> {
-  console.error(`[Feishu] removeReaction called for message: ${messageId}`);
   const result = await withLarkClient(projectDir, async (c) => {
     const listResult = await c.im.messageReaction.list({
       path: { message_id: messageId },
     });
-    console.error(`[Feishu] removeReaction list result: code=${listResult.code}, items=${listResult.data?.items?.length || 0}`);
     if (listResult.code !== 0 || !listResult.data?.items) {
       return false;
     }
     const ourReaction = listResult.data.items.find(
       (r: any) => r.reaction_type?.emoji_type === REACTION_EMOJI
     );
-    console.error(`[Feishu] Found our reaction:`, ourReaction ? JSON.stringify(ourReaction) : 'none');
     if (!ourReaction || !ourReaction.reaction_id) {
       return true;
     }
     const deleteResult = await c.im.messageReaction.delete({
       path: { message_id: messageId, reaction_id: ourReaction.reaction_id },
     });
-    console.error(`[Feishu] removeReaction delete result: code=${deleteResult.code}`);
     return deleteResult.code === 0;
   }, "[Feishu] Remove reaction failed:");
-  console.error(`[Feishu] removeReaction final result: ${result}`);
   return result ?? false;
 }
 
@@ -168,7 +160,6 @@ export async function createWSClient(
     // 创建事件分发器
     const eventDispatcher = new lark.EventDispatcher({}).register({
       "im.message.receive_v1": async (data: any) => {
-        console.error("[code-ing] [Feishu WS] Received:", data);
         if (wsClient.onMessage) wsClient.onMessage(data);
       },
     });
@@ -183,11 +174,8 @@ export async function createWSClient(
     // 启动长连接
     ws.start({ eventDispatcher });
 
-    console.error("[code-ing] [Feishu WS] Started, waiting for connection...");
-
     // 延迟触发 onConnect 回调（WebSocket 需要时间建立连接）
     setTimeout(() => {
-      console.error("[code-ing] [Feishu WS] Connection established");
       if (wsClient.onConnect) wsClient.onConnect();
     }, 1000);
 

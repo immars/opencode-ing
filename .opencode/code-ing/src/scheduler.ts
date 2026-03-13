@@ -320,24 +320,11 @@ export async function testTriggerAllCronSys(
   projectDir: string,
   client: any
 ): Promise<void> {
-  console.error('[Scheduler] TEST: Triggering all CRON_SYS tasks');
-  
   const cronSysContent = readCronSys(projectDir);
-  console.error('[Scheduler] TEST: CRON_SYS content:\n', cronSysContent);
-  
   const systemTasks = parseCronFile(cronSysContent);
-  console.error('[Scheduler] TEST: Parsed tasks:', JSON.stringify(systemTasks, null, 2));
-  
   const enabledSystemTasks = systemTasks.filter((t) => t.enabled);
-  console.error('[Scheduler] TEST: Found', enabledSystemTasks.length, 'enabled CRON_SYS tasks');
   
   for (const task of enabledSystemTasks) {
-    console.error('[Scheduler] TEST: Executing CRON_SYS task:', task.name);
-    const taskContent = extractTaskContent(cronSysContent, task.name);
-    console.error('[Scheduler] TEST: Task content:\n', taskContent);
-    
     await executeCronSysTask(projectDir, client, task, cronSysContent);
   }
-  
-  console.error('[Scheduler] TEST: All CRON_SYS tasks triggered');
 }
