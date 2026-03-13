@@ -105,17 +105,14 @@ export function substituteVariables(
 ): string {
   let result = content;
 
-  result = result.replace(/\{L0\}/g, variables.L0);
-  result = result.replace(/\{L1\}/g, variables.L1);
+  result = result.replace(/\{L0\}|\{L0_content\}/g, variables.L0);
+  result = result.replace(/\{L1\}|\{L1_content\}/g, variables.L1);
   result = result.replace(/\{L1_path\}/g, variables.L1_path);
   result = result.replace(/\{L2_path\}/g, variables.L2_path);
 
   return result;
 }
 
-/**
- * Check if content has any variables that need substitution
- */
 export function hasVariables(content: string): boolean {
-  return /\{L0\}|\{L1\}|\{L1_path\}|\{L2_path\}/.test(content);
+  return /\{L0(_content)?\}|\{L1(_content)?\}|\{L1_path\}|\{L2_path\}/.test(content);
 }

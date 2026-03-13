@@ -11,6 +11,7 @@ import { readDailySummaries } from './l1.js';
 import { readWeeklySummaries } from './l2.js';
 import { readWeeklySummaries as readL2WeeklySummaries } from './l2.js';
 import { L1_DIR, L2_DIR, PATHS } from './constants.js';
+import { buildVariableContext, substituteVariables, hasVariables } from './sys-inject.js';
 
 /**
  * Stub functions for scheduler context
@@ -26,8 +27,16 @@ export function getCronContext(projectDir: string, taskContent: string): string 
 }
 
 export function getCronSysContext(projectDir: string, taskContent: string): string {
-  const cronSys = readCronSys(projectDir);
-  return cronSys || 'No system cron tasks';
+  if (!taskContent) {
+    return 'No task content provided';
+  }
+  
+  if (hasVariables(taskContent)) {
+    const variables = buildVariableContext(projectDir);
+    return substituteVariables(taskContent, variables);
+  }
+  
+  return taskContent;
 }
 
 /**
@@ -125,6 +134,14 @@ export function formatContextAsPrompt(context: MemoryContext): string {
     parts.push('## Weekly Summaries\n');
     for (const summary of context.weeklySummaries) {
       parts.push(`### ${summary.week_start} - ${summary.week_end}\n${summary.summary}`);
+    }
+  }
+
+  if (context.recentMessages.length > 0) {
+    parts.push('## Recent Conversation\n');
+    for (const msg of context.recentMessages) {
+      const role = msg.role === 'user' ? 'User' : 'Assistant';
+      parts.push(`[${msg.timestamp}] ${role}: ${msg.content}`);
     }
   }
 

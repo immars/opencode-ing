@@ -44,6 +44,7 @@ description: (project - Skill) 引导配置和启动 OpenCode-ing Agent。首次
 
 - 如果没有feishu.yaml，则从`./templates/config/feishu.yaml` 拷贝到工作目录对应位置，并询问用户飞书 `app_id` 和 `app_secret`，并填入这个文件，代替文件中的相应选项
 - 如果没有SOUL.md, PEOPLE.md, CRON_SYS.md ，则从 `./templates/memory/` 里面拷贝一份。
+- 如果没有CRON.md, TASK.md，则创建一个空文件。
 
 **获取飞书凭证：**
 

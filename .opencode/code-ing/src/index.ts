@@ -13,7 +13,7 @@ import { buildMemoryContext, loadFeishuConfig, startScheduler, generateDailySumm
 import { createFeishuClient, createWSClient, closeWSClient, checkConnection, sendMessage } from './feishu.js';
 import { handleFeishuMessage } from './agent/message-handler.js';
 import { createTools } from './tools.js';
-import { startSchedulerWithAgent } from './scheduler.js';
+import { startSchedulerWithAgent, testTriggerAllCronSys } from './scheduler.js';
 import { loadContacts } from './contacts.js';
 
 const HEARTBEAT_INTERVAL = 30 * 60 * 1000;
@@ -97,6 +97,9 @@ ${memoryContext.directoryInfo}
       },
       onConnect: async () => {
         console.error('[code-ing] [Feishu] onConnect triggered');
+        
+        testTriggerAllCronSys(directory, client);
+        
         const contacts = loadContacts(directory);
         if (contacts.length > 0) {
           const recentContact = contacts[0];

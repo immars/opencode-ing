@@ -29,11 +29,15 @@ export function parseCronFile(content: string): CronTask[] {
     let enabled = true;
 
     for (const line of lines.slice(1)) {
-      const trimmed = line.trim();
+      let trimmed = line.trim();
+      if (trimmed.startsWith('* ')) {
+        trimmed = trimmed.substring(2);
+      }
+      
       if (trimmed.startsWith('name:')) {
         name = trimmed.substring(5).trim();
       } else if (trimmed.startsWith('schedule:')) {
-        schedule = trimmed.substring(9).trim();
+        schedule = trimmed.substring(9).trim().replace(/`/g, '');
       } else if (trimmed.startsWith('description:') || trimmed.startsWith('descrption:')) {
         description = trimmed.substring(12).trim();
       } else if (trimmed.startsWith('enabled:')) {
