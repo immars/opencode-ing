@@ -5,6 +5,7 @@
  */
 
 import { DEFAULTS } from './constants.js';
+import { getFeishuContext, formatContextAsPrompt } from './context.js';
 
 const MANAGED_SESSION_NAME = 'Assistant Managed Session';
 const SESSION_MAX_AGE_HOURS = DEFAULTS.SESSION_MAX_AGE_HOURS;
@@ -79,7 +80,10 @@ export async function housekeepSessions(
  * 
  * Uses housekeeping to keep only latest 5 sessions
  */
-export async function getOrCreateManagedSession(client: any): Promise<string | null> {
+export async function getOrCreateManagedSession(
+  client: any,
+  directory?: string
+): Promise<string | null> {
   try {
     const sessionsResp = await client.session.list();
     const allSessions = sessionsResp?.data || [];
@@ -115,6 +119,25 @@ export async function getOrCreateManagedSession(client: any): Promise<string | n
     const newSessionId = newSession.data?.id;
     if (newSessionId) {
       console.error('[Session] Created new managed session:', newSessionId);
+      
+      if (directory) {
+        const memoryContext = getFeishuContext(directory);
+        const contextPrompt = formatContextAsPrompt(memoryContext);
+        
+        if (contextPrompt) {
+          console.error('=== INJECTED CONTEXT START ===');
+          console.error(contextPrompt);
+          console.error('=== INJECTED CONTEXT END ===');
+          
+          await client.session.prompt({
+            path: { id: newSessionId },
+            body: {
+              parts: [{ type: 'text', text: `[System Context]\n\n${contextPrompt}` }],
+            },
+          });
+        }
+      }
+      
       return newSessionId;
     }
 
