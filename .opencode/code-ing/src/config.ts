@@ -7,7 +7,7 @@
 
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { MEMORY_DIR } from './memory/constants.js';
+import { WORKSPACE_DIR } from './memory/constants.js';
 
 export interface FeishuConfig {
   app_id: string;
@@ -56,15 +56,11 @@ function parseYaml(content: string): Record<string, any> {
   return result;
 }
 
-function getRootDir(projectDir: string): string {
-  return join(projectDir, MEMORY_DIR);
-}
-
 /**
  * Load Feishu configuration from .code-ing/config/feishu.yaml
  */
 export function loadFeishuConfig(projectDir: string): FeishuConfig | null {
-  const configPath = join(projectDir, '.code-ing', 'config', 'feishu.yaml');
+  const configPath = join(projectDir, WORKSPACE_DIR, 'config', 'feishu.yaml');
 
   if (!existsSync(configPath)) {
     return null;

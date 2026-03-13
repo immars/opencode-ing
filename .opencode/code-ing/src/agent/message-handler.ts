@@ -1,5 +1,6 @@
 import { createFeishuClient, sendMessage } from '../feishu.js';
 import { getOrCreateManagedSession } from './session.js';
+import { getFeishuContext, formatContextAsPrompt } from '../memory/context.js';
 
 export interface MessageHandlerDeps {
   client: any;
@@ -29,10 +30,21 @@ export async function handleFeishuMessage(
     }
 
     try {
+      const memoryContext = getFeishuContext(directory);
+      const contextPrompt = formatContextAsPrompt(memoryContext);
+      
+      console.error('=== INJECTED CONTEXT START ===');
+      console.error(contextPrompt);
+      console.error('=== INJECTED CONTEXT END ===');
+      
+      const fullPrompt = contextPrompt 
+        ? `${contextPrompt}\n\n---\n\n## Current User Message\n${textContent}`
+        : textContent;
+
       const result = await client.session.prompt({
         path: { id: sessionId },
         body: {
-          parts: [{ type: 'text', text: textContent }],
+          parts: [{ type: 'text', text: fullPrompt }],
         },
       });
 

@@ -13,7 +13,7 @@ import { join } from 'path';
 import { readRecentMessages } from './l0.js';
 import { readDailySummaries } from './l1.js';
 import { readWeeklySummaries } from './l2.js';
-import { PATHS, MEMORY_DIR, L1_DIR, L2_DIR } from './constants.js';
+import { PATHS, MEMORY_ROOT_DIR, L1_DIR, L2_DIR } from './constants.js';
 
 export interface VariableContext {
   L0: string;
@@ -67,7 +67,7 @@ export function getL1Content(projectDir: string): string {
  */
 export function getL1Path(projectDir: string): string {
   const today = new Date().toISOString().split('T')[0];
-  return join(projectDir, MEMORY_DIR, L1_DIR, `${today}.md`);
+  return join(projectDir, MEMORY_ROOT_DIR, L1_DIR, `${today}.md`);
 }
 
 /**
@@ -80,7 +80,7 @@ export function getL2Path(projectDir: string): string {
   weekStart.setDate(now.getDate() - dayOfWeek);
   const weekStartStr = weekStart.toISOString().split('T')[0];
 
-  return join(projectDir, MEMORY_DIR, L2_DIR, `${weekStartStr}.md`);
+  return join(projectDir, MEMORY_ROOT_DIR, L2_DIR, `${weekStartStr}.md`);
 }
 
 /**

@@ -6,10 +6,10 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { MEMORY_DIR, WORKSPACE_DIR } from './constants.js';
+import { MEMORY_ROOT_DIR, WORKSPACE_DIR } from './constants.js';
 
 export function getMemoryDir(projectDir: string, subDir: string): string {
-  return join(projectDir, MEMORY_DIR, subDir);
+  return join(projectDir, MEMORY_ROOT_DIR, subDir);
 }
 
 export function ensureMemoryDir(projectDir: string, subDir: string): void {

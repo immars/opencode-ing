@@ -7,13 +7,13 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import type { DailySummary } from './types.js';
-import { MEMORY_DIR, L1_DIR, DEFAULTS } from './constants.js';
+import { MEMORY_ROOT_DIR, L1_DIR, DEFAULTS } from './constants.js';
 
 /**
  * Get L1 directory path
  */
 function getL1Dir(projectDir: string): string {
-  return join(projectDir, MEMORY_DIR, L1_DIR);
+  return join(projectDir, MEMORY_ROOT_DIR, L1_DIR);
 }
 
 /**

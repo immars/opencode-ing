@@ -7,13 +7,13 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import type { WeeklySummary } from './types.js';
-import { MEMORY_DIR, L2_DIR, DEFAULTS } from './constants.js';
+import { MEMORY_ROOT_DIR, L2_DIR, DEFAULTS } from './constants.js';
 
 /**
  * Get L2 directory path
  */
 function getL2Dir(projectDir: string): string {
-  return join(projectDir, MEMORY_DIR, L2_DIR);
+  return join(projectDir, MEMORY_ROOT_DIR, L2_DIR);
 }
 
 /**

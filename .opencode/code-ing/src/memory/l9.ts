@@ -6,13 +6,13 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { MEMORY_DIR, L9_FILES } from './constants.js';
+import { MEMORY_ROOT_DIR, L9_FILES } from './constants.js';
 
 /**
  * Get the root memory directory path
  */
 function getRootDir(projectDir: string): string {
-  return join(projectDir, MEMORY_DIR);
+  return join(projectDir, MEMORY_ROOT_DIR);
 }
 
 /**

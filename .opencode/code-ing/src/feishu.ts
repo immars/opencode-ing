@@ -158,6 +158,12 @@ export async function createWSClient(
 
     console.error("[code-ing] [Feishu WS] Started, waiting for connection...");
 
+    // 延迟触发 onConnect 回调（WebSocket 需要时间建立连接）
+    setTimeout(() => {
+      console.error("[code-ing] [Feishu WS] Connection established");
+      if (wsClient.onConnect) wsClient.onConnect();
+    }, 1000);
+
     wsClient.wsClient = ws;
     return wsClient;
   } catch (e) {

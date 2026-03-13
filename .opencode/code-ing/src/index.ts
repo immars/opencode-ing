@@ -10,9 +10,33 @@
 
 import type { Plugin, Hooks } from '@opencode-ai/plugin';
 import { buildMemoryContext, loadFeishuConfig, startScheduler, generateDailySummary, generateWeeklySummary } from './memory.js';
-import { createFeishuClient, createWSClient, closeWSClient } from './feishu.js';
+import { createFeishuClient, createWSClient, closeWSClient, checkConnection, sendMessage } from './feishu.js';
 import { handleFeishuMessage } from './agent/message-handler.js';
 import { createTools } from './tools.js';
+import { startSchedulerWithAgent } from './scheduler.js';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+
+const HEARTBEAT_INTERVAL = 60000;
+
+interface Contact {
+  chatId: string;
+  lastSeen: string;
+  type: 'group' | 'user';
+}
+
+function loadRecentContacts(projectDir: string): Contact[] {
+  const contactsPath = join(projectDir, '.code-ing', 'memory', 'contacts.json');
+  if (!existsSync(contactsPath)) {
+    return [];
+  }
+  try {
+    const content = readFileSync(contactsPath, 'utf-8');
+    return JSON.parse(content);
+  } catch {
+    return [];
+  }
+}
 
 export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
   const { client, directory } = ctx;
@@ -91,7 +115,22 @@ ${memoryContext.directoryInfo}
       onMessage: async (msg: any) => {
         await handleFeishuMessage({ client, directory }, msg);
       },
-      onConnect: async () => {},
+      onConnect: async () => {
+        console.error('[code-ing] [Feishu] onConnect triggered');
+        const contacts = loadRecentContacts(directory);
+        if (contacts.length > 0) {
+          const recentContact = contacts[0];
+          console.error('[code-ing] [Feishu] Sending startup message to:', recentContact.chatId);
+          const sent = await sendMessage(feishuClient, recentContact.chatId, '🤖 Assistant 启动成功！');
+          if (sent) {
+            console.error('[code-ing] [Feishu] Startup message sent successfully');
+          } else {
+            console.error('[code-ing] [Feishu] Failed to send startup message');
+          }
+        } else {
+          console.error('[code-ing] [Feishu] No recent contacts found');
+        }
+      },
       onDisconnect: async () => {},
     });
 

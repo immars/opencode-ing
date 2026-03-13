@@ -4,8 +4,11 @@
  * Directory and file path constants
  */
 
-/** Root directory for memory system */
-export const MEMORY_DIR = '.code-ing';
+/** Memory root directory (where L0/L1/L2 live) */
+export const MEMORY_ROOT_DIR = '.code-ing/memory';
+
+/** Workspace directory (alias for .code-ing) */
+export const WORKSPACE_DIR = '.code-ing';
 
 /** L0: Raw message records */
 export const L0_DIR = 'L0';
@@ -25,11 +28,11 @@ export const L9_FILES = {
   CRON_SYS: 'CRON_SYS.md',
 } as const;
 
-/** Directory paths relative to MEMORY_DIR */
+/** Directory paths relative to MEMORY_ROOT_DIR */
 export const PATHS = {
-  L0: `${MEMORY_DIR}/${L0_DIR}`,
-  L1: `${MEMORY_DIR}/${L1_DIR}`,
-  L2: `${MEMORY_DIR}/${L2_DIR}`,
+  L0: `${MEMORY_ROOT_DIR}/${L0_DIR}`,
+  L1: `${MEMORY_ROOT_DIR}/${L1_DIR}`,
+  L2: `${MEMORY_ROOT_DIR}/${L2_DIR}`,
 } as const;
 
 /** Default configuration values */

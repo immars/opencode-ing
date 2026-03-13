@@ -13,6 +13,24 @@ import { readWeeklySummaries as readL2WeeklySummaries } from './l2.js';
 import { L1_DIR, L2_DIR, PATHS } from './constants.js';
 
 /**
+ * Stub functions for scheduler context
+ */
+export function getTaskContext(projectDir: string): string {
+  const tasks = readTasks(projectDir);
+  return tasks || 'No tasks defined';
+}
+
+export function getCronContext(projectDir: string, taskContent: string): string {
+  const cron = readCron(projectDir);
+  return cron || 'No cron tasks defined';
+}
+
+export function getCronSysContext(projectDir: string, taskContent: string): string {
+  const cronSys = readCronSys(projectDir);
+  return cronSys || 'No system cron tasks';
+}
+
+/**
  * Get directory listing info
  */
 function getDirectoryInfo(projectDir: string): string {
