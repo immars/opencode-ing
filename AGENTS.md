@@ -224,7 +224,7 @@ The memory system uses a hierarchical structure for efficient context loading:
 | L9 | `memory/{SOUL,PEOPLE,TASK,CRON,CRON_SYS}.md` | Long-term memory | Variable |
 
 **Context Injection**:
-- Feishu message triggers: L9 files + last 60 L0 messages + 3 L1 days + 3 L2 weeks
+- Feishu message triggers: L9 files + last 60 L0 messages + 5 L1 days + 5 L2 weeks
 - Scheduled triggers: L9 files + matching CRON tasks
 
 ---

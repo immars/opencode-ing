@@ -36,7 +36,7 @@
 
 agent的工作有几种触发方式。code-ing 会往context中注入记忆信息。
 
-* 飞书消息触发。注入：工作目录的根目录； L9中的SOUL.md，PEOPLE.md，TASK.md；L0中，最近60条消息；L1中最近3天的信息；L2中最近3周的信息。剩下的，让agent按需自己读取。
+* 飞书消息触发。注入：工作目录的根目录； L9中的SOUL.md，PEOPLE.md，TASK.md；L0中，最近60条消息；L1中最近5天的信息；L2中最近5周的信息。剩下的，让agent按需自己读取。
 * 定时触发。注入：工作目录的根目录；L9中的 SOUL.md，PEOPLE.md，TASK.md；以及 CRON.md 和 CRON_SYS.md 中，按照当前触发的时间，应该激活的任务。
 
 # 定时逻辑
