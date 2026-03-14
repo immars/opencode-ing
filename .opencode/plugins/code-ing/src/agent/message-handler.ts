@@ -1,7 +1,7 @@
 import { createFeishuClient, sendMessage, addReaction, removeReaction } from '../feishu.js';
 import { getOrCreateManagedSession } from '../memory/session.js';
 import { saveContact } from '../contacts.js';
-import { writeMessageRecord } from '../memory/l0.js';
+import { writeMessageRecord } from '../memory/levels.js';
 import { prettifyMessage } from '../prettifier.js';
 import { logger } from '../logger.js';
 

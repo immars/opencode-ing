@@ -8,9 +8,9 @@
 import { loadFeishuConfig } from './config.js';
 import { getFeishuContext, getScheduledContext, formatContextAsPrompt } from './memory/context.js';
 import { getOrCreateManagedSession, housekeepSessions } from './memory/session.js';
-import { writeDailySummary, readDailySummary, readDailySummaries } from './memory/l1.js';
-import { writeWeeklySummary, readWeeklySummary, readWeeklySummaries } from './memory/l2.js';
-import { readSoul, readPeople, readTasks, readCron, readCronSys, readAllL9 } from './memory/l9.js';
+import { writeDailySummary, readDailySummary, readDailySummaries } from './memory/levels.js';
+import { writeWeeklySummary, readWeeklySummary, readWeeklySummaries } from './memory/levels.js';
+import { readSoul, readPeople, readTasks, readCron, readCronSys, readAllL9 } from './memory/levels.js';
 import { MessageRecord, DailySummary, WeeklySummary, MemoryContext, TriggerType } from './memory/types.js';
 import { logger } from './logger.js';
 
