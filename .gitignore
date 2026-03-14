@@ -26,5 +26,7 @@ Thumbs.db
 # Sisyphus planning (internal)
 .sisyphus/
 
-
+# code-ing runtime files
 .code-ing/*
+
+.opencode/plugins/code-ing.js

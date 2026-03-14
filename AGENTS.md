@@ -39,7 +39,7 @@ opencode
 ```
 opencode-ing/
 ├── .opencode/
-│   ├── code-ing/           # Main plugin code (TypeScript)
+│   ├── plugins/code-ing/           # Main plugin code (TypeScript)
 │   │   ├── src/            # Source files
 │   │   │   ├── index.ts    # Plugin entry point
 │   │   │   ├── config.ts   # Configuration loading

@@ -14,25 +14,33 @@ description: (project - Skill) 引导配置和启动 OpenCode-ing Agent。首次
 
 ### 1. 检查当前的工作目录
 
-- 问询用户工作目录的路径，默认 `.code-ing`
+- 工作目录的路径，默认 `.code-ing`
 - 检查并建立子目录 config 和 memory目录结构：
 
 ```
-.:
-  - config:
-    - feishu.yaml  # 飞书配置文件
-  - memory: 
-    - L0:	# L0 记忆目录
-      - ...
-    - L1:	# L1 记忆目录
-      - ...
-    - L2: 	# L2 记忆目录
-    - SOUL.md	# L9 关于自身记忆
-    - PEOPLE.md	# L9 关于用户的记忆
-    - TASK.md   # 用户任务表
-    - CRON.md   # 用户定时任务表
-    - CRON_SYS.md # 系统定时任务表
-```
+.code-ing/config/
+└─── feishu.yaml         # 飞书配置文件
+
+.code-ing/memory/
+├── SOUL.md              # Agent 性格与习惯
+├── PEOPLE.md            # 用户画像与偏好
+├── TASK.md              # 任务记录
+├── CRON.md              # 定时任务
+├── CRON_SYS.md          # 系统定时任务表
+├── contacts.json        # 联系人数据
+├── L0/                  # Level 0 - 每日原始对话记录
+│   └── ...              
+├── L1/                  # Level 1 - 每日摘要
+│   └── ...              
+└── L2/                  # Level 2 - 周摘要
+    └── ...              
+
+ ```
+层级说明：
+- L0: 原始对话日志（详细记录）
+- L1: 每日摘要（压缩版）
+- L2: 周摘要（更高层抽象）
+
 
 - 上述各项目录，如果没有则创建
 
@@ -42,9 +50,9 @@ description: (project - Skill) 引导配置和启动 OpenCode-ing Agent。首次
 
 *feishu.yaml的初始化* 
 
-- 如果没有feishu.yaml，则从`./templates/config/feishu.yaml` 拷贝到工作目录对应位置，并询问用户飞书 `app_id` 和 `app_secret`，并填入这个文件，代替文件中的相应选项
-- 如果没有SOUL.md, PEOPLE.md, CRON_SYS.md ，则从 `./templates/memory/` 里面拷贝一份。
-- 如果没有CRON.md, TASK.md，则创建一个空文件。
+1. 如果没有feishu.yaml，则从`./templates/config/feishu.yaml` 拷贝到工作目录对应位置，并询问用户飞书 `app_id` 和 `app_secret`，并填入这个文件，代替文件中的相应选项。
+2. 如果没有SOUL.md, PEOPLE.md, CRON_SYS.md ，则从 `./templates/memory/` 里面拷贝一份。
+3. 如果没有CRON.md, TASK.md，则创建一个空文件。
 
 **获取飞书凭证：**
 
@@ -62,9 +70,14 @@ description: (project - Skill) 引导配置和启动 OpenCode-ing Agent。首次
 - 询问用户希望使用什么模型来运行Code-ing Assistant，并提示用户可以选择opencode配置好的模型，可以通过 `opencode models` 命令来查看
 - 把用户提供的模型，填写在 `./.opencode/agents/assistant.md` 中的第4行，替代原来的 `model` 选项的内容.
 
+### 3. 编译
+
+1. 进到 `.opencode/` 目录，安装依赖。
+2. 进到 `.opencode/plugins/code-ing/` 目录，进行编译。
+3. 进到 `.opencode/plugins/` 目录，建立符号链接：`ln -s code-ing/dist/index.js code-ing.js`
 
 # 完成
 
-完成后，提示用户 "配置成功，请重启opencode 以生效"
+上述步骤都完成后，提示用户 "配置成功，请重启opencode 以生效"
 
 
