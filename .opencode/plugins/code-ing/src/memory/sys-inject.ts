@@ -8,10 +8,18 @@
  * - L2_path: L2 file path for writing compressed L1
  */
 
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { readRecentMessages } from './l0.js';
-import { PATHS, MEMORY_ROOT_DIR, L1_DIR, L2_DIR, L0_DIR } from './constants.js';
+import { getWeekStart } from './l2.js';
+import { L0_DIR, L1_DIR, L2_DIR, MEMORY_ROOT_DIR } from './constants.js';
+import { 
+  formatLocalDate, 
+  getTodayString,
+  ensureMemoryDir, 
+  getMemoryDir, 
+  getMemoryFilePath 
+} from './utils.js';
 
 export interface VariableContext {
   L0: string;
@@ -20,15 +28,8 @@ export interface VariableContext {
   L2_path: string;
 }
 
-function formatLocalDate(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 export function getL0Content(projectDir: string): string {
-  const today = formatLocalDate(new Date());
+  const today = getTodayString();
   const messages = readRecentMessages(projectDir, today, 60);
   
   if (messages.length === 0) {
@@ -52,7 +53,7 @@ export function getL1Content(projectDir: string): string {
   weekStart.setHours(0, 0, 0, 0);
 
   const contents: string[] = [];
-  const l1Dir = join(projectDir, MEMORY_ROOT_DIR, L1_DIR);
+  const l1Dir = getMemoryDir(projectDir, L1_DIR);
 
   for (let i = 0; i <= dayOfWeek; i++) {
     const date = new Date(weekStart);
@@ -72,23 +73,14 @@ export function getL1Content(projectDir: string): string {
 }
 
 export function getL1Path(projectDir: string): string {
-  const today = formatLocalDate(new Date());
-  return join(projectDir, MEMORY_ROOT_DIR, L1_DIR, `${today}.md`);
+  return getMemoryFilePath(projectDir, L1_DIR, `${getTodayString()}.md`);
 }
 
 export function getL2Path(projectDir: string): string {
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - dayOfWeek);
-  const weekStartStr = formatLocalDate(weekStart);
-
-  return join(projectDir, MEMORY_ROOT_DIR, L2_DIR, `${weekStartStr}.md`);
+  const weekStartStr = getWeekStart(new Date());
+  return getMemoryFilePath(projectDir, L2_DIR, `${weekStartStr}.md`);
 }
 
-/**
- * Build variable context for CRON_SYS task substitution
- */
 export function buildVariableContext(projectDir: string): VariableContext {
   const L0 = getL0Content(projectDir);
   const L1 = getL1Content(projectDir);
@@ -100,10 +92,6 @@ export function buildVariableContext(projectDir: string): VariableContext {
   };
 }
 
-/**
- * Perform variable substitution on task content
- * Variables are wrapped in { } brackets
- */
 export function substituteVariables(
   content: string,
   variables: VariableContext
@@ -123,29 +111,16 @@ export function hasVariables(content: string): boolean {
 }
 
 export function ensureMemoryPaths(projectDir: string): void {
-  const today = formatLocalDate(new Date());
-  
-  const now = new Date();
-  const dayOfWeek = now.getDay();
-  const weekStart = new Date(now);
-  weekStart.setDate(now.getDate() - dayOfWeek);
-  const weekStartStr = formatLocalDate(weekStart);
+  const today = getTodayString();
+  const weekStartStr = getWeekStart(new Date());
 
-  const dirs = [
-    join(projectDir, MEMORY_ROOT_DIR, L0_DIR),
-    join(projectDir, MEMORY_ROOT_DIR, L1_DIR),
-    join(projectDir, MEMORY_ROOT_DIR, L2_DIR),
-  ];
+  ensureMemoryDir(projectDir, L0_DIR);
+  ensureMemoryDir(projectDir, L1_DIR);
+  ensureMemoryDir(projectDir, L2_DIR);
 
-  for (const dir of dirs) {
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
-  }
-
-  const l0File = join(projectDir, MEMORY_ROOT_DIR, L0_DIR, `${today}.md`);
-  const l1File = join(projectDir, MEMORY_ROOT_DIR, L1_DIR, `${today}.md`);
-  const l2File = join(projectDir, MEMORY_ROOT_DIR, L2_DIR, `${weekStartStr}.md`);
+  const l0File = getMemoryFilePath(projectDir, L0_DIR, `${today}.md`);
+  const l1File = getMemoryFilePath(projectDir, L1_DIR, `${today}.md`);
+  const l2File = getMemoryFilePath(projectDir, L2_DIR, `${weekStartStr}.md`);
 
   for (const file of [l0File, l1File, l2File]) {
     if (!existsSync(file)) {

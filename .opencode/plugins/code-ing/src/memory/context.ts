@@ -9,9 +9,9 @@ import { readSoul, readPeople, readTasks, readCron, readCronSys, readAllL9 } fro
 import { readRecentMessages, readAllMessages } from './l0.js';
 import { readDailySummaries } from './l1.js';
 import { readWeeklySummaries } from './l2.js';
-import { readWeeklySummaries as readL2WeeklySummaries } from './l2.js';
 import { L1_DIR, L2_DIR, PATHS } from './constants.js';
 import { buildVariableContext, substituteVariables, hasVariables } from './sys-inject.js';
+import { getTodayString } from './utils.js';
 
 /**
  * Stub functions for scheduler context
@@ -59,19 +59,11 @@ export function buildMemoryContext(
   projectDir: string,
   triggerType: TriggerType
 ): MemoryContext {
-  // Read L9 files (long-term memory)
   const longTermMemory = readAllL9(projectDir);
-
-  // Read recent messages from L0
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const todayStr = getTodayString();
   const recentMessages = readRecentMessages(projectDir, todayStr, 60);
-
-  // Read L1 summaries (last 3 days)
   const dailySummaries = readDailySummaries(projectDir, 3);
-
-  // Read L2 summaries (last 3 weeks)
-  const weeklySummaries = readL2WeeklySummaries(projectDir, 3);
+  const weeklySummaries = readWeeklySummaries(projectDir, 3);
 
   return {
     directoryInfo: getDirectoryInfo(projectDir),

@@ -4,137 +4,59 @@
  * Handles SOUL.md, PEOPLE.md, TASK.md, CRON.md, CRON_SYS.md
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { MEMORY_ROOT_DIR, L9_FILES } from './constants.js';
+import { L9_FILES } from './constants.js';
+import { readMemoryRootFile, writeMemoryRootFile } from './utils.js';
 
-/**
- * Get the root memory directory path
- */
-function getRootDir(projectDir: string): string {
-  return join(projectDir, MEMORY_ROOT_DIR);
+type L9FileName = typeof L9_FILES[keyof typeof L9_FILES];
+
+function readL9File(projectDir: string, filename: L9FileName): string {
+  return readMemoryRootFile(projectDir, filename);
 }
 
-/**
- * Ensure root memory directory exists
- */
-function ensureRootDir(projectDir: string): void {
-  const dir = getRootDir(projectDir);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
+function writeL9File(projectDir: string, filename: L9FileName, content: string): void {
+  writeMemoryRootFile(projectDir, filename, content);
 }
 
-/**
- * Get file path for L9 file
- */
-function getL9FilePath(projectDir: string, filename: string): string {
-  return join(getRootDir(projectDir), filename);
-}
-
-/**
- * Read SOUL.md - Agent personality
- */
 export function readSoul(projectDir: string): string {
-  const filePath = getL9FilePath(projectDir, L9_FILES.SOUL);
-  if (!existsSync(filePath)) {
-    return '';
-  }
-  return readFileSync(filePath, 'utf-8');
+  return readL9File(projectDir, L9_FILES.SOUL);
 }
 
-/**
- * Write SOUL.md - Agent personality
- */
 export function writeSoul(projectDir: string, content: string): void {
-  ensureRootDir(projectDir);
-  const filePath = getL9FilePath(projectDir, L9_FILES.SOUL);
-  writeFileSync(filePath, content);
+  writeL9File(projectDir, L9_FILES.SOUL, content);
 }
 
-/**
- * Read PEOPLE.md - User profiles
- */
 export function readPeople(projectDir: string): string {
-  const filePath = getL9FilePath(projectDir, L9_FILES.PEOPLE);
-  if (!existsSync(filePath)) {
-    return '';
-  }
-  return readFileSync(filePath, 'utf-8');
+  return readL9File(projectDir, L9_FILES.PEOPLE);
 }
 
-/**
- * Write PEOPLE.md - User profiles
- */
 export function writePeople(projectDir: string, content: string): void {
-  ensureRootDir(projectDir);
-  const filePath = getL9FilePath(projectDir, L9_FILES.PEOPLE);
-  writeFileSync(filePath, content);
+  writeL9File(projectDir, L9_FILES.PEOPLE, content);
 }
 
-/**
- * Read TASK.md - Current tasks
- */
 export function readTasks(projectDir: string): string {
-  const filePath = getL9FilePath(projectDir, L9_FILES.TASK);
-  if (!existsSync(filePath)) {
-    return '';
-  }
-  return readFileSync(filePath, 'utf-8');
+  return readL9File(projectDir, L9_FILES.TASK);
 }
 
-/**
- * Write TASK.md - Current tasks
- */
 export function writeTasks(projectDir: string, content: string): void {
-  ensureRootDir(projectDir);
-  const filePath = getL9FilePath(projectDir, L9_FILES.TASK);
-  writeFileSync(filePath, content);
+  writeL9File(projectDir, L9_FILES.TASK, content);
 }
 
-/**
- * Read CRON.md - User-defined cron tasks
- */
 export function readCron(projectDir: string): string {
-  const filePath = getL9FilePath(projectDir, L9_FILES.CRON);
-  if (!existsSync(filePath)) {
-    return '';
-  }
-  return readFileSync(filePath, 'utf-8');
+  return readL9File(projectDir, L9_FILES.CRON);
 }
 
-/**
- * Write CRON.md - User-defined cron tasks
- */
 export function writeCron(projectDir: string, content: string): void {
-  ensureRootDir(projectDir);
-  const filePath = getL9FilePath(projectDir, L9_FILES.CRON);
-  writeFileSync(filePath, content);
+  writeL9File(projectDir, L9_FILES.CRON, content);
 }
 
-/**
- * Read CRON_SYS.md - System cron tasks
- */
 export function readCronSys(projectDir: string): string {
-  const filePath = getL9FilePath(projectDir, L9_FILES.CRON_SYS);
-  if (!existsSync(filePath)) {
-    return '';
-  }
-  return readFileSync(filePath, 'utf-8');
+  return readL9File(projectDir, L9_FILES.CRON_SYS);
 }
 
-/**
- * Write CRON_SYS.md - System cron tasks
- */
 export function writeCronSys(projectDir: string, content: string): void {
-  ensureRootDir(projectDir);
-  const filePath = getL9FilePath(projectDir, L9_FILES.CRON_SYS);
-  writeFileSync(filePath, content);
+  writeL9File(projectDir, L9_FILES.CRON_SYS, content);
 }
 
-/**
- * Read all L9 files at once
- */
 export function readAllL9(projectDir: string): {
   soul: string;
   people: string;

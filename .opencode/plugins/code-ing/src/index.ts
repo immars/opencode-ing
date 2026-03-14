@@ -9,7 +9,7 @@
  */
 
 import type { Plugin, Hooks } from '@opencode-ai/plugin';
-import { buildMemoryContext, loadFeishuConfig, startScheduler, generateDailySummary, generateWeeklySummary } from './memory.js';
+import { buildMemoryContext, loadFeishuConfig } from './memory.js';
 import { createFeishuClient, createWSClient, closeWSClient, checkConnection, sendMessage } from './feishu.js';
 import { handleFeishuMessage } from './agent/message-handler.js';
 import { createTools } from './tools.js';
@@ -53,24 +53,7 @@ ${memoryContext.directoryInfo}
     }, HEARTBEAT_INTERVAL);
   };
 
-  // 启动定时任务调度器 (with agent execution)
   startSchedulerWithAgent(directory, client);
-
-  startScheduler(directory, async (tasks) => {
-    for (const task of tasks) {
-      if (task.name === 'generate-l1' || task.name === 'daily-summary') {
-        const today = new Date();
-        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-        await generateDailySummary(directory, todayStr);
-      } else if (task.name === 'generate-l2' || task.name === 'weekly-summary') {
-        const now = new Date();
-        const weekStart = new Date(now);
-        weekStart.setDate(now.getDate() - now.getDay());
-        const weekStartStr = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
-        await generateWeeklySummary(directory, weekStartStr);
-      }
-    }
-  });
 
   const connectFeishu = async (): Promise<string> => {
     logger.info('code-ing', 'Connecting to Feishu...');

@@ -7,7 +7,6 @@
 
 import { loadFeishuConfig } from './config.js';
 import { getFeishuContext, getScheduledContext, formatContextAsPrompt } from './memory/context.js';
-import { startScheduler, stopScheduler, getNextScheduledTime } from './memory/scheduler.js';
 import { getOrCreateManagedSession, housekeepSessions } from './memory/session.js';
 import { writeDailySummary, readDailySummary, readDailySummaries } from './memory/l1.js';
 import { writeWeeklySummary, readWeeklySummary, readWeeklySummaries } from './memory/l2.js';
@@ -65,9 +64,6 @@ export {
   getFeishuContext,
   getScheduledContext,
   formatContextAsPrompt,
-  startScheduler,
-  stopScheduler,
-  getNextScheduledTime,
   getOrCreateManagedSession,
   housekeepSessions,
   writeDailySummary,

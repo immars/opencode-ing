@@ -4,41 +4,14 @@
  * Handles daily summary generation and storage
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
 import type { DailySummary } from './types.js';
-import { MEMORY_ROOT_DIR, L1_DIR, DEFAULTS } from './constants.js';
+import { DEFAULTS, L1_DIR } from './constants.js';
+import { ensureMemoryDir, getMemoryFilePath, listMemoryFiles } from './utils.js';
 
-/**
- * Get L1 directory path
- */
-function getL1Dir(projectDir: string): string {
-  return join(projectDir, MEMORY_ROOT_DIR, L1_DIR);
-}
-
-/**
- * Ensure L1 directory exists
- */
-function ensureL1Dir(projectDir: string): void {
-  const dir = getL1Dir(projectDir);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
-}
-
-/**
- * Get L1 file path for a date
- */
-function getL1FilePath(projectDir: string, date: string): string {
-  return join(getL1Dir(projectDir), `${date}.md`);
-}
-
-/**
- * Write daily summary to L1
- */
 export function writeDailySummary(projectDir: string, summary: DailySummary): void {
-  ensureL1Dir(projectDir);
-  const filePath = getL1FilePath(projectDir, summary.date);
+  ensureMemoryDir(projectDir, L1_DIR);
+  const filePath = getMemoryFilePath(projectDir, L1_DIR, `${summary.date}.md`);
   const content = `# Daily Summary - ${summary.date}
 
 ## Topics
@@ -53,12 +26,8 @@ ${summary.summary}
   writeFileSync(filePath, content);
 }
 
-/**
- * Read daily summary from L1
- * Returns the raw file content as summary for maximum flexibility
- */
 export function readDailySummary(projectDir: string, date: string): DailySummary | null {
-  const filePath = getL1FilePath(projectDir, date);
+  const filePath = getMemoryFilePath(projectDir, L1_DIR, `${date}.md`);
   if (!existsSync(filePath)) {
     return null;
   }
@@ -72,17 +41,8 @@ export function readDailySummary(projectDir: string, date: string): DailySummary
   };
 }
 
-/**
- * Read multiple daily summaries (most recent first)
- */
 export function readDailySummaries(projectDir: string, count: number = 3): DailySummary[] {
-  const dir = getL1Dir(projectDir);
-  if (!existsSync(dir)) {
-    return [];
-  }
-
-  const files = readdirSync(dir)
-    .filter(f => f.endsWith('.md'))
+  const files = listMemoryFiles(projectDir, L1_DIR, '.md')
     .sort()
     .reverse()
     .slice(0, count);
