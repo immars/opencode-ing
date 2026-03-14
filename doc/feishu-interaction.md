@@ -10,4 +10,13 @@
 - 去掉一些系统可能附带的信息，比如 `<dcp-system-reminder>` 这个tag后面的信息。先实现这一个tag的过滤。
 - 消息可能包含markdown的一些格式。看看是否有办法支持飞书消息这些格式的正确渲染
 
+## 飞书文件传输功能
+
+* plugin支持飞书文件传输功能。plugin通过给agent暴露一个tool接口：`sendfile`；当agent认为用户需要文件发送的时候调用这个接口。
+
+`sendfile` 接口必填参数：
+
+- `path`: 发送的文件的本地路径
+
+plugin 在 `sendfile` 被调用的时候，通过识别调用是来自于哪个session，以及查阅session的标题来确定文件该发给谁。
 

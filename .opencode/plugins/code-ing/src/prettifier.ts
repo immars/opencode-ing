@@ -4,7 +4,23 @@
  * Cleans and formats messages before sending to Feishu:
  * - Filters system tags
  * - Converts markdown to Feishu rich text format
+ * - Truncates messages to fit Feishu's length limit
  */
+
+export const FEISHU_TEXT_LIMIT = 5000;
+
+export function truncateToLimit(content: string, maxChars: number = FEISHU_TEXT_LIMIT): string {
+  if (content.length <= maxChars) {
+    return content;
+  }
+  
+  const omitted = content.length - maxChars;
+  const prefix = `[...省略${omitted}字]\n\n`;
+  const targetChars = maxChars - prefix.length;
+  const truncatedContent = content.slice(-targetChars);
+  
+  return prefix + truncatedContent;
+}
 
 /**
  * Filter out system tags from message content
@@ -203,7 +219,7 @@ export function hasMarkdownFormatting(content: string): boolean {
 }
 
 /**
- * Main prettify function - filters tags and converts markdown
+ * Main prettify function - filters tags, converts markdown, and truncates to fit limit
  * Returns either plain text or rich text content
  */
 export function prettifyMessage(content: string): { 
@@ -211,28 +227,29 @@ export function prettifyMessage(content: string): {
   richContent?: { zh_cn: { title: string; content: RichTextSegment[][] } };
   useRichText: boolean;
 } {
-  // Step 1: Filter system tags
   const cleaned = filterSystemTags(content);
+  const truncated = truncateToLimit(cleaned);
   
-  // Step 2: Check if markdown conversion is beneficial
-  if (hasMarkdownFormatting(cleaned)) {
-    const richContent = markdownToFeishuRichText(cleaned);
+  if (hasMarkdownFormatting(truncated)) {
+    const richContent = markdownToFeishuRichText(truncated);
     return {
-      text: cleaned,
+      text: truncated,
       richContent,
       useRichText: true
     };
   }
   
   return {
-    text: cleaned,
+    text: truncated,
     useRichText: false
   };
 }
 
 export default {
   filterSystemTags,
+  truncateToLimit,
   markdownToFeishuRichText,
   hasMarkdownFormatting,
-  prettifyMessage
+  prettifyMessage,
+  FEISHU_TEXT_LIMIT
 };
