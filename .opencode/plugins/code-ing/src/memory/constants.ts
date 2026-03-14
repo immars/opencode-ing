@@ -36,6 +36,10 @@ export const PATHS = {
 } as const;
 
 /** Default configuration values */
+/**
+ * L1 and L2 lookback increased from 3 to 5 to help agent remember
+ * more context from the past (issue #1)
+ */
 export const DEFAULTS = {
   L0_MAX_MESSAGES: 60,
   L1_SUMMARY_MAX_BYTES: 500,
