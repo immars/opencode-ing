@@ -10,7 +10,7 @@ import { readRecentMessages, readAllMessages } from './l0.js';
 import { readDailySummaries } from './l1.js';
 import { readWeeklySummaries } from './l2.js';
 import { readWeeklySummaries as readL2WeeklySummaries } from './l2.js';
-import { L1_DIR, L2_DIR, PATHS } from './constants.js';
+import { L1_DIR, L2_DIR, PATHS, DEFAULTS } from './constants.js';
 import { buildVariableContext, substituteVariables, hasVariables } from './sys-inject.js';
 
 /**
@@ -67,11 +67,11 @@ export function buildMemoryContext(
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const recentMessages = readRecentMessages(projectDir, todayStr, 60);
 
-  // Read L1 summaries (last 5 days)
-  const dailySummaries = readDailySummaries(projectDir, 5);
+  // Read L1 summaries (last N days from constants)
+  const dailySummaries = readDailySummaries(projectDir, DEFAULTS.L1_LOOKBACK_DAYS);
 
-  // Read L2 summaries (last 5 weeks)
-  const weeklySummaries = readL2WeeklySummaries(projectDir, 5);
+  // Read L2 summaries (last N weeks from constants)
+  const weeklySummaries = readL2WeeklySummaries(projectDir, DEFAULTS.L2_LOOKBACK_WEEKS);
 
   return {
     directoryInfo: getDirectoryInfo(projectDir),
