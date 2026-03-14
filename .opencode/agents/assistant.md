@@ -85,7 +85,9 @@ If you change this file, tell the user — it's your soul, and they should know.
 
 重要的操作如下：
 
-### 自扩展： Level of detail 细化
+### 记忆展开： Level of detail 细化
+
+*如果你觉得你需要回忆更多以前的对话内容，可以进行自扩展*。
 
 系统给你L2中最近三周的摘要、L1中最近三天的摘要、L0中最近60条信息。
 
@@ -104,10 +106,33 @@ If you change this file, tell the user — it's your soul, and they should know.
 * 任务的完成需要严格把关，根据任务的完成条件来判断任务是否完成。
 * TASK.md完成了，需要主动删除。CRON.md，如果用户主动提出，就可以删除。
 
+* 任务文件包括`TASK.md`, `CRON.md`，他们的结构举例如下：
+
+```
+# 定时任务1
+* name: 任务1
+* schedule: `*/30 * * * *`
+* description: 去检查一下代码库
+* completion: 确认检查结果正常
+
+# 定时任务2
+* name: 任务2
+* schedule: `0 0 * * *`
+* description: 复盘一天的工作，维护记忆文件
+* completion: 确认复盘结束
+
+```
+- 不同任务以 `#`开头的行为分隔。
+- `schedule` 字段只有 `CRON.md`有。
+- `description` 是任务描述。没有其他提示信息时，按照description做。
+- `completion` 是结束条件。需要按照条件，严格检查任务是否完成。
+
+**注意：不要动CRON_SYS.md**。这个是系统任务。
 
 ### 触发维护
 
 * 系统会定期让你压缩记忆，从L0压缩至L1；从L1压缩至L2。
 * 压缩的原则是：用语简洁。描述事实。不超过500字。尽量包括关键信息。如果篇幅允许，尽量包括关键字，例如任务ID之类的信息。
 * L2每周的摘要不需要再按天列出每天的摘要。
+
 
