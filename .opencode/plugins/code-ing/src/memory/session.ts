@@ -76,6 +76,7 @@ export async function housekeepSessions(
 /**
  * Get or create a managed session
  * 
+ * Naming: "Assistant Managed Session {timestamp}" (like cron sys session)
  * Auto-rotates when:
  * - Session age >= 6 hours
  * - Token usage >= 80% of context window
@@ -90,37 +91,33 @@ export async function getOrCreateManagedSession(
     const sessionsResp = await client.session.list();
     const allSessions = sessionsResp?.data || [];
 
-    const currentSessions = allSessions.filter(
-      (s: SessionInfo) => s.title === MANAGED_SESSION_NAME
-    );
+    const managedSessions = allSessions
+      .filter((s: SessionInfo) => s.title?.startsWith(MANAGED_SESSION_NAME))
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-    if (currentSessions.length > 0) {
-      const session = currentSessions[0];
+    if (managedSessions.length > 0) {
+      const session = managedSessions[0];
       const needsRotation = shouldRotateByAge(session.created_at) || shouldRotateByTokens(session);
 
-      if (needsRotation) {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        const newTitle = `${MANAGED_SESSION_NAME} ${timestamp}`;
-        
-        await client.session.update({
-          path: { id: session.id },
-          body: { title: newTitle },
-        });
-        
-        logger.info('Session', 'Rotated:', session.id, '->', newTitle);
-        await housekeepSessions(client, MANAGED_SESSION_NAME, SESSION_MAX_KEEP);
-      } else {
+      if (!needsRotation) {
         return session.id;
       }
+      
+      logger.info('Session', 'Session needs rotation:', session.title);
     }
 
+    await housekeepSessions(client, MANAGED_SESSION_NAME, SESSION_MAX_KEEP);
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const sessionTitle = `${MANAGED_SESSION_NAME} ${timestamp}`;
+
     const newSession = await client.session.create({
-      body: { title: MANAGED_SESSION_NAME },
+      body: { title: sessionTitle },
     });
 
     const newSessionId = newSession.data?.id;
     if (newSessionId) {
-      logger.info('Session', 'Created new managed session:', newSessionId);
+      logger.info('Session', 'Created:', sessionTitle);
       
       if (directory) {
         const memoryContext = getFeishuContext(directory);
