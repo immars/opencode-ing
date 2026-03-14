@@ -227,6 +227,96 @@ export async function deleteOldSessions(
   }
 }
 
+export async function getOrCreateChatSession(
+  client: any,
+  directory: string,
+  chatId: string
+): Promise<string | null> {
+  const sessionPrefix = `Chat ${chatId}`;
+  const maxKeep = 5;
+
+  try {
+    const sessionsResp = await client.session.list();
+    const allSessions = sessionsResp?.data || [];
+
+    const chatSessions = allSessions
+      .filter((s: SessionInfo) => s.title?.startsWith(sessionPrefix))
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    if (chatSessions.length > 0) {
+      const session = chatSessions[0];
+      const needsRotation = shouldRotateByAge(session.created_at) || shouldRotateByTokens(session);
+
+      if (!needsRotation) {
+        return session.id;
+      }
+
+      logger.info('ChatSession', 'Session needs rotation:', session.title);
+    }
+
+    await housekeepSessions(client, sessionPrefix, maxKeep);
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const sessionTitle = `${sessionPrefix} ${timestamp}`;
+
+    const newSession = await client.session.create({
+      body: { title: sessionTitle },
+    });
+
+    const newSessionId = newSession.data?.id;
+    if (newSessionId) {
+      logger.info('ChatSession', 'Created:', sessionTitle);
+
+      if (directory) {
+        const memoryContext = getFeishuContext(directory);
+        const contextPrompt = formatContextAsPrompt(memoryContext);
+
+        if (contextPrompt) {
+          await client.session.prompt({
+            path: { id: newSessionId },
+            body: {
+              agent: AGENT_NAME,
+              parts: [{ type: 'text', text: `[System Context]\n\n${contextPrompt}` }],
+            },
+          });
+        }
+      }
+
+      return newSessionId;
+    }
+
+    logger.error('ChatSession', 'Failed to create session: no ID returned');
+    return null;
+  } catch (err) {
+    logger.error('ChatSession', 'Failed to get or create chat session:', err);
+    return null;
+  }
+}
+
+export function parseChatIdFromTitle(title: string): string | null {
+  const match = title.match(/^Chat\s+([^\s]+)\s/);
+  return match ? match[1] : null;
+}
+
+export async function getChatIdFromSession(
+  client: any,
+  sessionId: string
+): Promise<string | null> {
+  try {
+    const sessionsResp = await client.session.list();
+    const allSessions = sessionsResp?.data || [];
+    const session = allSessions.find((s: SessionInfo) => s.id === sessionId);
+    
+    if (session?.title) {
+      return parseChatIdFromTitle(session.title);
+    }
+    
+    return null;
+  } catch (err) {
+    return null;
+  }
+}
+
 /**
  * Cron Sys Session Manager
  * 

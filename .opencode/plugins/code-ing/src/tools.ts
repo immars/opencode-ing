@@ -1,16 +1,19 @@
 import { tool } from '@opencode-ai/plugin';
 import { buildMemoryContext } from './memory.js';
 import { loadFeishuConfig } from './config.js';
+import { sendFileToChat } from './feishu.js';
+import { getChatIdFromSession } from './memory/session.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 export interface ToolDeps {
   directory: string;
+  client: any;
   connectFeishu: () => Promise<string>;
 }
 
 export function createTools(deps: ToolDeps): Record<string, ReturnType<typeof tool>> {
-  const { directory, connectFeishu } = deps;
+  const { directory, client, connectFeishu } = deps;
 
   return {
     'code-ing.reload-feishu': tool({
@@ -166,6 +169,46 @@ export function createTools(deps: ToolDeps): Record<string, ReturnType<typeof to
         }
 
         return results.join('\n');
+      },
+    }),
+
+    'code-ing.send-file': tool({
+      description: '发送文件到飞书对话',
+      args: {
+        file_path: tool.schema.string().describe('本地文件路径（绝对路径或相对于项目根目录的路径）'),
+        chat_id: tool.schema.string().optional().describe('目标对话ID，默认发送到当前对话'),
+      },
+      async execute(args, context) {
+        const { file_path, chat_id } = args;
+        
+        const absolutePath = path.isAbsolute(file_path) 
+          ? file_path 
+          : path.join(directory, file_path);
+        
+        try {
+          await fs.access(absolutePath);
+        } catch {
+          return `文件不存在: ${absolutePath}`;
+        }
+        
+        let targetChatId: string | undefined = chat_id;
+        
+        if (!targetChatId && client && context.sessionID) {
+          const chatId = await getChatIdFromSession(client, context.sessionID);
+          targetChatId = chatId ?? undefined;
+        }
+        
+        if (!targetChatId) {
+          return `无法确定目标对话ID。sessionID=${context.sessionID}, client=${client ? 'yes' : 'no'}。请提供 chat_id 参数。`;
+        }
+        
+        const result = await sendFileToChat(directory, targetChatId, absolutePath);
+        
+        if (result.success) {
+          return `文件已发送: ${path.basename(absolutePath)} (message_id: ${result.messageId})`;
+        }
+        
+        return `发送失败: ${result.error}`;
       },
     }),
   };

@@ -123,7 +123,7 @@ ${memoryContext.directoryInfo}
     }
   }, 2000);
 
-  const tools = createTools({ directory, connectFeishu });
+  const tools = createTools({ directory, client, connectFeishu });
 
   return {
     tool: tools,

@@ -12,13 +12,19 @@ OpenCode-ing is a long-running autonomous AI agent that integrates with Feishu (
 
 **Tech Stack**: TypeScript (ES modules), Node.js, @larksuiteoapi/node-sdk, zod, @opencode-ai/plugin
 
+important reference: 
+
+- [opencode plugin/api](https://github.com/anomalyco/opencode)
+- [feishu sdk](https://github.com/larksuite/node-sdk)
+  
+
 ---
 
 ## Build / Development Commands
 
 ```bash
-# Build TypeScript (from .opencode/code-ing/)
-cd .opencode/code-ing
+# Build TypeScript (from .opencode/plugins/code-ing/)
+cd .opencode/plugins/code-ing
 npm run build          # Compile TypeScript to dist/
 npm run dev            # Watch mode for development
 
@@ -64,7 +70,7 @@ opencode-ing/
 
 ## TypeScript Configuration
 
-**tsconfig.json** (located at `.opencode/code-ing/tsconfig.json`):
+**tsconfig.json** (located at `.opencode/plugins/code-ing/tsconfig.json`):
 - Target: ES2022
 - Module: ESNext with bundler resolution
 - Strict mode enabled
@@ -283,7 +289,7 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
 ## Common Tasks
 
 ### Adding a new memory level
-1. Create module in `.opencode/code-ing/src/memory/`
+1. Create module in `.opencode/plugins/code-ing/src/memory/`
 2. Export from `memory/index.ts`
 3. Add types to `memory/types.ts`
 4. Update `buildMemoryContext()` in main memory module

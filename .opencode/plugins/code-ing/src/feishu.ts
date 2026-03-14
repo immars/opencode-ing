@@ -1,7 +1,5 @@
-/**
- * code-ing Feishu Integration Module
- */
-
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { loadFeishuConfig } from "./config.js";
 import { logger } from "./logger.js";
 
@@ -12,7 +10,17 @@ export interface FeishuWSClient {
   onDisconnect?: () => void;
 }
 
-// 表情类型映射
+export interface FileUploadResult {
+  fileKey: string;
+  fileName: string;
+}
+
+export interface FileSendResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+}
+
 const REACTION_EMOJI = "SMILE";
 
 export function createFeishuClient(projectDir: string): { appId: string; appSecret: string } | null {
@@ -61,6 +69,10 @@ async function getLarkClientByProject(projectDir: string): Promise<any | null> {
   const client = getOrCreateClient(projectDir);
   if (!client) return null;
   return getOrCreateLarkClient(client);
+}
+
+export async function getLarkClient(projectDir: string): Promise<any | null> {
+  return getLarkClientByProject(projectDir);
 }
 
 async function withLarkClient<T>(
@@ -120,7 +132,7 @@ export async function checkConnection(projectDir: string): Promise<boolean> {
   const result = await withLarkClient(projectDir, async (c) => {
     const result = await c.contact.user.get({ path: { user_id: "me" } });
     return result.code === 0;
-  }, "[Feishu] Connection check failed:");
+  }, "Connection check failed:");
   return result ?? false;
 }
 
@@ -134,7 +146,7 @@ export async function addReaction(
       data: { reaction_type: { emoji_type: REACTION_EMOJI } },
     });
     return result.code === 0;
-  }, "[Feishu] Add reaction failed:");
+  }, "Add reaction failed:");
   return result ?? false;
 }
 
@@ -159,8 +171,84 @@ export async function removeReaction(
       path: { message_id: messageId, reaction_id: ourReaction.reaction_id },
     });
     return deleteResult.code === 0;
-  }, "[Feishu] Remove reaction failed:");
+  }, "Remove reaction failed:");
   return result ?? false;
+}
+
+export async function uploadFile(
+  projectDir: string,
+  filePath: string
+): Promise<FileUploadResult | null> {
+  const fileName = path.basename(filePath);
+  
+  const result = await withLarkClient(projectDir, async (c) => {
+    const fileBuffer = await fs.readFile(filePath);
+    
+    const res = await c.im.file.create({
+      data: {
+        file_type: 'stream',
+        file_name: fileName,
+        file: fileBuffer,
+      },
+    });
+    
+    // im.file.create returns { file_key: '...' } directly, NOT { code, msg, data }
+    if (!res?.file_key) {
+      return null;
+    }
+    
+    return {
+      fileKey: res.file_key,
+      fileName,
+    };
+  }, `Failed to upload file: ${fileName}`);
+  
+  return result;
+}
+
+async function sendFileMessage(
+  projectDir: string,
+  chatId: string,
+  fileKey: string
+): Promise<FileSendResult> {
+  const result = await withLarkClient(projectDir, async (c) => {
+    const res = await c.im.message.create({
+      params: { receive_id_type: 'chat_id' },
+      data: {
+        receive_id: chatId,
+        msg_type: 'file',
+        content: JSON.stringify({ file_key: fileKey }),
+      },
+    });
+    
+    if (res.code !== 0) {
+      return {
+        success: false,
+        error: res.msg || 'Unknown error',
+      };
+    }
+    
+    return {
+      success: true,
+      messageId: res.data?.message_id,
+    };
+  }, `Failed to send file message to chat: ${chatId}`);
+  
+  return result ?? { success: false, error: 'Failed to get Lark client' };
+}
+
+export async function sendFileToChat(
+  projectDir: string,
+  chatId: string,
+  filePath: string
+): Promise<FileSendResult> {
+  const uploadResult = await uploadFile(projectDir, filePath);
+  
+  if (!uploadResult) {
+    return { success: false, error: 'Failed to upload file' };
+  }
+  
+  return sendFileMessage(projectDir, chatId, uploadResult.fileKey);
 }
 
 export async function createWSClient(
@@ -181,24 +269,20 @@ export async function createWSClient(
   try {
     const lark = await import("@larksuiteoapi/node-sdk");
 
-    // 创建事件分发器
     const eventDispatcher = new lark.EventDispatcher({}).register({
       "im.message.receive_v1": async (data: any) => {
         if (wsClient.onMessage) wsClient.onMessage(data);
       },
     });
 
-    // 创建 WS Client
     const ws = new lark.WSClient({
       appId: client.appId,
       appSecret: client.appSecret,
       loggerLevel: lark.LoggerLevel.warn,
     });
 
-    // 启动长连接
     ws.start({ eventDispatcher });
 
-    // 延迟触发 onConnect 回调（WebSocket 需要时间建立连接）
     setTimeout(() => {
       if (wsClient.onConnect) wsClient.onConnect();
     }, 1000);
@@ -217,5 +301,3 @@ export function closeWSClient(wsClient: FeishuWSClient): void {
     wsClient.wsClient = undefined;
   }
 }
-
-export default { createFeishuClient, sendMessage, createWSClient, closeWSClient, checkConnection, addReaction, removeReaction };

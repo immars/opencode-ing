@@ -1,5 +1,5 @@
 import { createFeishuClient, sendMessage, addReaction, removeReaction } from '../feishu.js';
-import { getOrCreateManagedSession } from '../memory/session.js';
+import { getOrCreateChatSession } from '../memory/session.js';
 import { saveContact } from '../contacts.js';
 import { writeMessageRecord } from '../memory/levels.js';
 import { prettifyMessage } from '../prettifier.js';
@@ -46,7 +46,7 @@ export async function handleFeishuMessage(
     }
 
     // 先获取/创建session（此时L0不包含当前消息，避免context重复）
-    const sessionId = await getOrCreateManagedSession(client, directory);
+    const sessionId = await getOrCreateChatSession(client, directory, chatId);
     
     // 然后记录当前消息到L0
     const today = new Date();
