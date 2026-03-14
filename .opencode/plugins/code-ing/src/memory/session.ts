@@ -6,6 +6,7 @@
 
 import { DEFAULTS } from './constants.js';
 import { getFeishuContext, formatContextAsPrompt } from './context.js';
+import { logger } from '../logger.js';
 
 const MANAGED_SESSION_NAME = 'Assistant Managed Session';
 const AGENT_NAME = 'assistant';
@@ -54,7 +55,7 @@ export async function housekeepSessions(
     const toDelete = matched.slice(maxKeep);
 
     if (toDelete.length > 0) {
-      console.error(`[Session] Housekeeping "${prefix}": ${matched.length} found, deleting ${toDelete.length}`);
+      logger.info('Session', `Housekeeping "${prefix}": ${matched.length} found, deleting ${toDelete.length}`);
     }
 
     for (const session of toDelete) {
@@ -62,13 +63,13 @@ export async function housekeepSessions(
         await client.session.delete({
           path: { id: session.id },
         });
-        console.error('[Session] Deleted:', session.title);
+        logger.info('Session', 'Deleted:', session.title);
       } catch (e) {
-        console.error('[Session] Failed to delete:', session.title, e);
+        logger.error('Session', 'Failed to delete:', session.title, e);
       }
     }
   } catch (err) {
-    console.error('[Session] Housekeeping failed:', err);
+    logger.error('Session', 'Housekeeping failed:', err);
   }
 }
 
@@ -106,7 +107,7 @@ export async function getOrCreateManagedSession(
           body: { title: newTitle },
         });
         
-        console.error('[Session] Rotated:', session.id, '->', newTitle);
+        logger.info('Session', 'Rotated:', session.id, '->', newTitle);
         await housekeepSessions(client, MANAGED_SESSION_NAME, SESSION_MAX_KEEP);
       } else {
         return session.id;
@@ -119,7 +120,7 @@ export async function getOrCreateManagedSession(
 
     const newSessionId = newSession.data?.id;
     if (newSessionId) {
-      console.error('[Session] Created new managed session:', newSessionId);
+      logger.info('Session', 'Created new managed session:', newSessionId);
       
       if (directory) {
         const memoryContext = getFeishuContext(directory);
@@ -139,10 +140,10 @@ export async function getOrCreateManagedSession(
       return newSessionId;
     }
 
-    console.error('[Session] Failed to create session: no ID returned');
+    logger.error('Session', 'Failed to create session: no ID returned');
     return null;
   } catch (err) {
-    console.error('[Session] Failed to get or create managed session:', err);
+    logger.error('Session', 'Failed to get or create managed session:', err);
     return null;
   }
 }
@@ -197,7 +198,7 @@ export async function rotateOldSessions(
       }
     }
   } catch (err) {
-    console.error('Failed to rotate sessions:', err);
+    logger.error('Session', 'Failed to rotate sessions:', err);
   }
 }
 
@@ -225,7 +226,7 @@ export async function deleteOldSessions(
       });
     }
   } catch (err) {
-    console.error('Failed to delete old sessions:', err);
+    logger.error('Session', 'Failed to delete old sessions:', err);
   }
 }
 
@@ -257,13 +258,13 @@ export class CronSysSessionManager {
 
       const newSessionId = newSession.data?.id;
       if (newSessionId) {
-        console.error('[CronSysSession] Created:', sessionTitle);
+        logger.info('CronSysSession', 'Created:', sessionTitle);
         return newSessionId;
       }
 
       return null;
     } catch (err) {
-      console.error('[CronSysSession] Failed to create session:', err);
+      logger.error('CronSysSession', 'Failed to create session:', err);
       return null;
     }
   }
@@ -279,20 +280,20 @@ export class CronSysSessionManager {
 
       const toDelete = cronSessions.slice(this.maxKeep);
       
-      console.error(`[CronSysSession] Housekeeping: ${cronSessions.length} sessions, deleting ${toDelete.length}`);
+      logger.info('CronSysSession', `Housekeeping: ${cronSessions.length} sessions, deleting ${toDelete.length}`);
 
       for (const session of toDelete) {
         try {
           await this.client.session.delete({
             path: { id: session.id },
           });
-          console.error('[CronSysSession] Deleted:', session.title);
+          logger.info('CronSysSession', 'Deleted:', session.title);
         } catch (e) {
-          console.error('[CronSysSession] Failed to delete:', session.title, e);
+          logger.error('CronSysSession', 'Failed to delete:', session.title, e);
         }
       }
     } catch (err) {
-      console.error('[CronSysSession] Housekeeping failed:', err);
+      logger.error('CronSysSession', 'Housekeeping failed:', err);
     }
   }
 

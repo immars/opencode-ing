@@ -15,11 +15,14 @@ import { handleFeishuMessage } from './agent/message-handler.js';
 import { createTools } from './tools.js';
 import { startSchedulerWithAgent } from './scheduler.js';
 import { loadContacts } from './contacts.js';
+import { setLoggerClient, logger } from './logger.js';
 
 const HEARTBEAT_INTERVAL = 30 * 60 * 1000;
 
 export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
   const { client, directory } = ctx;
+
+  setLoggerClient(client);
 
   const memoryContext = buildMemoryContext(directory, 'feishu_message');
 
@@ -70,11 +73,11 @@ ${memoryContext.directoryInfo}
   });
 
   const connectFeishu = async (): Promise<string> => {
-    console.error('[code-ing] Connecting to Feishu...');
+    logger.info('code-ing', 'Connecting to Feishu...');
     const config = loadFeishuConfig(directory);
 
     if (!config) {
-      console.error('[code-ing] Feishu config not found');
+      logger.error('code-ing', 'Feishu config not found');
       return '未找到飞书配置';
     }
 
@@ -91,17 +94,17 @@ ${memoryContext.directoryInfo}
       closeWSClient(feishuWSClient);
     }
 
-    console.error('[code-ing] Connecting to Feishu...');
+    logger.info('code-ing', 'Connecting to Feishu...');
     feishuWSClient = await createWSClient(feishuClient, {
       onMessage: async (msg: any) => {
         try {
           await handleFeishuMessage({ client, directory }, msg);
         } catch (err) {
-          console.error('[code-ing] ERROR in handleFeishuMessage:', err);
+          logger.error('code-ing', 'ERROR in handleFeishuMessage:', err);
         }
       },
       onConnect: async () => {
-        console.error('[code-ing] Feishu WebSocket connected!');
+        logger.info('code-ing', 'Feishu WebSocket connected!');
         const contacts = loadContacts(directory);
         if (contacts.length > 0) {
           const recentContact = contacts[0];
@@ -109,7 +112,7 @@ ${memoryContext.directoryInfo}
         }
       },
       onDisconnect: async () => {
-        console.error('[code-ing] Feishu WebSocket disconnected');
+        logger.warn('code-ing', 'Feishu WebSocket disconnected');
       },
     });
 
@@ -129,7 +132,7 @@ ${memoryContext.directoryInfo}
     if (config && config.app_id && config.app_secret) {
       const result = await connectFeishu();
       if (result.includes('失败') || result.includes('未找到')) {
-        console.error('[code-ing] Connection failed:', result);
+        logger.error('code-ing', 'Connection failed:', result);
       }
     }
   }, 2000);

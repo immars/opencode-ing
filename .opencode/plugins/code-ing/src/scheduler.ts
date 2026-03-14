@@ -11,6 +11,7 @@ import { readCron, readCronSys, readTasks } from './memory/l9.js';
 import { getTaskContext, getCronContext, getCronSysContext } from './memory/context.js';
 import { CronSysSessionManager, getOrCreateManagedSession } from './memory/session.js';
 import { ensureMemoryPaths } from './memory/sys-inject.js';
+import { logger } from './logger.js';
 
 let schedulerInterval: NodeJS.Timeout | null = null;
 let isRunning = false;
@@ -86,7 +87,7 @@ async function executeScheduledTasks(
     return;
   }
 
-  console.error('[Scheduler] Triggered at', now.toISOString());
+  logger.info('Scheduler', 'Triggered at', now.toISOString());
 
   const taskContent = readTasks(projectDir);
   const cronContent = readCron(projectDir);
@@ -122,13 +123,13 @@ async function executeTask(
   client: any
 ): Promise<void> {
   try {
-    console.error('[Scheduler] Executing TASK.md');
+    logger.info('Scheduler', 'Executing TASK.md');
 
     const contextPrompt = getTaskContext(projectDir);
     const sessionId = await getOrCreateManagedSession(client);
 
     if (!sessionId) {
-      console.error('[Scheduler] Failed to get or create session for TASK execution');
+      logger.error('Scheduler', 'Failed to get or create session for TASK execution');
       return;
     }
 
@@ -140,9 +141,9 @@ async function executeTask(
       },
     });
 
-    console.error('[Scheduler] TASK.md execution completed');
+    logger.info('Scheduler', 'TASK.md execution completed');
   } catch (err) {
-    console.error('[Scheduler] Failed to execute TASK:', err);
+    logger.error('Scheduler', 'Failed to execute TASK:', err);
   }
 }
 
@@ -156,7 +157,7 @@ async function executeCronTask(
   fullCronContent: string
 ): Promise<void> {
   try {
-    console.error('[Scheduler] Executing CRON task:', task.name);
+    logger.info('Scheduler', 'Executing CRON task:', task.name);
 
     const taskContent = extractTaskContent(fullCronContent, task.name);
     const contextPrompt = getCronContext(projectDir, taskContent);
@@ -164,7 +165,7 @@ async function executeCronTask(
     const sessionId = await getOrCreateManagedSession(client);
 
     if (!sessionId) {
-      console.error('[Scheduler] Failed to get or create session for CRON execution');
+      logger.error('Scheduler', 'Failed to get or create session for CRON execution');
       return;
     }
 
@@ -176,9 +177,9 @@ async function executeCronTask(
       },
     });
 
-    console.error('[Scheduler] CRON task completed:', task.name);
+    logger.info('Scheduler', 'CRON task completed:', task.name);
   } catch (err) {
-    console.error('[Scheduler] Failed to execute CRON task:', err);
+    logger.error('Scheduler', 'Failed to execute CRON task:', err);
   }
 }
 
@@ -194,7 +195,7 @@ async function executeCronSysTask(
   try {
     ensureMemoryPaths(projectDir);
     
-    console.error('[Scheduler] Executing CRON_SYS task:', task.name);
+    logger.info('Scheduler', 'Executing CRON_SYS task:', task.name);
 
     const taskContent = extractTaskContent(fullCronSysContent, task.name);
     const contextPrompt = getCronSysContext(projectDir, taskContent);
@@ -203,7 +204,7 @@ async function executeCronSysTask(
     const sessionId = await sessionManager.createSession();
 
     if (!sessionId) {
-      console.error('[Scheduler] Failed to create cron sys session');
+      logger.error('Scheduler', 'Failed to create cron sys session');
       return;
     }
 
@@ -215,9 +216,9 @@ async function executeCronSysTask(
       },
     });
 
-    console.error('[Scheduler] CRON_SYS task completed:', task.name);
+    logger.info('Scheduler', 'CRON_SYS task completed:', task.name);
   } catch (err) {
-    console.error('[Scheduler] Failed to execute CRON_SYS task:', err);
+    logger.error('Scheduler', 'Failed to execute CRON_SYS task:', err);
   }
 }
 

@@ -3,6 +3,7 @@
  */
 
 import { loadFeishuConfig } from "./config.js";
+import { logger } from "./logger.js";
 
 export interface FeishuWSClient {
   wsClient?: any;
@@ -49,7 +50,7 @@ async function withLarkClient<T>(
     const c = new lark.Client({ appId: client.appId, appSecret: client.appSecret });
     return await operation(c);
   } catch (e) {
-    console.error(errorMsg || "[Feishu] Operation failed:", e);
+    logger.error('Feishu', errorMsg || "Operation failed:", e);
     return null;
   }
 }
@@ -87,7 +88,7 @@ export async function sendMessage(
     });
     return result.code === 0;
   } catch (e) {
-    console.error("Error sending message:", e);
+    logger.error('Feishu', "Error sending message:", e);
     return false;
   }
 }
@@ -182,7 +183,7 @@ export async function createWSClient(
     wsClient.wsClient = ws;
     return wsClient;
   } catch (e) {
-    console.error("[Feishu WS] Failed to create:", e);
+    logger.error('Feishu', "Failed to create WS client:", e);
     return null;
   }
 }

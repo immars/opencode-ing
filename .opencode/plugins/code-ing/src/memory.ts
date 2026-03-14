@@ -13,6 +13,7 @@ import { writeDailySummary, readDailySummary, readDailySummaries } from './memor
 import { writeWeeklySummary, readWeeklySummary, readWeeklySummaries } from './memory/l2.js';
 import { readSoul, readPeople, readTasks, readCron, readCronSys, readAllL9 } from './memory/l9.js';
 import { MessageRecord, DailySummary, WeeklySummary, MemoryContext, TriggerType } from './memory/types.js';
+import { logger } from './logger.js';
 
 /**
  * Legacy buildMemoryContext - wraps new implementation
@@ -53,13 +54,11 @@ export const readAllShortTermMemory = {
 
 // Stub functions for summary generation (would integrate with LLM)
 export async function generateDailySummary(projectDir: string, date: string): Promise<void> {
-  // Placeholder - would call LLM to generate summary
-  console.log(`[memory] generateDailySummary not implemented for ${date} - needs LLM integration`);
+  logger.info('memory', `generateDailySummary not implemented for ${date} - needs LLM integration`);
 }
 
 export async function generateWeeklySummary(projectDir: string, weekStartDate: string): Promise<void> {
-  // Placeholder - would call LLM to generate summary
-  console.log(`[memory] generateWeeklySummary not implemented for ${weekStartDate} - needs LLM integration`);
+  logger.info('memory', `generateWeeklySummary not implemented for ${weekStartDate} - needs LLM integration`);
 }
 
 export {

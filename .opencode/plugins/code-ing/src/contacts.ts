@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { WORKSPACE_DIR } from './memory/constants.js'
+import { logger } from './logger.js'
 
 export interface Contact {
   chatId: string
@@ -62,6 +63,6 @@ export function saveContact(
   try {
     writeFileSync(contactsPath, JSON.stringify(trimmed, null, 2))
   } catch (err) {
-    console.error('Failed to save contacts:', err)
+    logger.error('Contacts', 'Failed to save contacts:', err)
   }
 }

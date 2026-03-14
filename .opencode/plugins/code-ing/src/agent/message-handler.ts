@@ -3,6 +3,7 @@ import { getOrCreateManagedSession } from '../memory/session.js';
 import { saveContact } from '../contacts.js';
 import { writeMessageRecord } from '../memory/l0.js';
 import { prettifyMessage } from '../prettifier.js';
+import { logger } from '../logger.js';
 
 const AGENT_NAME = 'assistant';
 
@@ -34,16 +35,20 @@ export async function handleFeishuMessage(
       try {
         await addReaction(directory, messageId);
       } catch (e) {
-        console.error('[MessageHandler] Failed to add reaction:', e);
+        logger.error('MessageHandler', 'Failed to add reaction:', e);
       }
     }
 
     try {
       saveContact(directory, chatId, chatType || 'p2p');
     } catch (e) {
-      console.error('[MessageHandler] Failed to save contact:', e);
+      logger.error('MessageHandler', 'Failed to save contact:', e);
     }
 
+    // 先获取/创建session（此时L0不包含当前消息，避免context重复）
+    const sessionId = await getOrCreateManagedSession(client, directory);
+    
+    // 然后记录当前消息到L0
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const timestamp = new Date().toISOString();
@@ -56,13 +61,11 @@ export async function handleFeishuMessage(
         source: 'feishu',
       });
     } catch (e) {
-      console.error('[MessageHandler] Failed to write message record:', e);
+      logger.error('MessageHandler', 'Failed to write message record:', e);
     }
-
-    const sessionId = await getOrCreateManagedSession(client, directory);
     
     if (!sessionId) {
-      console.error('[MessageHandler] Failed to get session ID');
+      logger.error('MessageHandler', 'Failed to get session ID');
       if (messageId) {
         await removeReaction(directory, messageId);
       }
@@ -103,7 +106,7 @@ export async function handleFeishuMessage(
         }
       }
     } catch (err: any) {
-      console.error('[MessageHandler] Error processing feishu message:', err);
+      logger.error('MessageHandler', 'Error processing feishu message:', err);
     } finally {
       if (messageId) {
         await removeReaction(directory, messageId);
