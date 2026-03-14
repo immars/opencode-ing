@@ -21,8 +21,6 @@ const HEARTBEAT_INTERVAL = 30 * 60 * 1000;
 export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
   const { client, directory } = ctx;
 
-  console.error('[code-ing] Plugin loaded, directory:', directory);
-
   const memoryContext = buildMemoryContext(directory, 'feishu_message');
 
   const systemPromptWithMemory = `
@@ -93,10 +91,9 @@ ${memoryContext.directoryInfo}
       closeWSClient(feishuWSClient);
     }
 
-    console.error('[code-ing] Creating WebSocket client...');
+    console.error('[code-ing] Connecting to Feishu...');
     feishuWSClient = await createWSClient(feishuClient, {
       onMessage: async (msg: any) => {
-        console.error('[code-ing] Received Feishu message');
         try {
           await handleFeishuMessage({ client, directory }, msg);
         } catch (err) {
@@ -128,14 +125,12 @@ ${memoryContext.directoryInfo}
   };
 
   setTimeout(async () => {
-    console.error('[code-ing] Auto-connecting to Feishu...');
     const config = loadFeishuConfig(directory);
     if (config && config.app_id && config.app_secret) {
-      console.error('[code-ing] Config found, app_id:', config.app_id);
       const result = await connectFeishu();
-      console.error('[code-ing] Connection result:', result);
-    } else {
-      console.error('[code-ing] No valid config, skipping auto-connect');
+      if (result.includes('失败') || result.includes('未找到')) {
+        console.error('[code-ing] Connection failed:', result);
+      }
     }
   }, 2000);
 
