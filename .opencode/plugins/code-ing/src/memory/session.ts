@@ -85,16 +85,22 @@ export async function getOrCreateManagedSession(
   directory?: string
 ): Promise<string | null> {
   try {
+    console.error('[Session] Listing sessions...');
     const sessionsResp = await client.session.list();
+    console.error('[Session] List response:', JSON.stringify(sessionsResp).slice(0, 500));
+    
     const allSessions = sessionsResp?.data || [];
+    console.error('[Session] Total sessions found:', allSessions.length);
 
     const currentSessions = allSessions.filter(
       (s: SessionInfo) => s.title === MANAGED_SESSION_NAME
     );
+    console.error('[Session] Current managed sessions:', currentSessions.length);
 
     if (currentSessions.length > 0) {
       const session = currentSessions[0];
       const needsRotation = shouldRotateByAge(session.created_at) || shouldRotateByTokens(session);
+      console.error('[Session] Found existing session:', session.id, 'needs rotation:', needsRotation);
 
       if (needsRotation) {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -112,9 +118,11 @@ export async function getOrCreateManagedSession(
       }
     }
 
+    console.error('[Session] Creating new session...');
     const newSession = await client.session.create({
       body: { title: MANAGED_SESSION_NAME },
     });
+    console.error('[Session] Create response:', JSON.stringify(newSession).slice(0, 500));
 
     const newSessionId = newSession.data?.id;
     if (newSessionId) {
@@ -125,6 +133,7 @@ export async function getOrCreateManagedSession(
         const contextPrompt = formatContextAsPrompt(memoryContext);
         
         if (contextPrompt) {
+          console.error('[Session] Injecting memory context...');
           await client.session.prompt({
             path: { id: newSessionId },
             body: {
@@ -137,9 +146,10 @@ export async function getOrCreateManagedSession(
       return newSessionId;
     }
 
+    console.error('[Session] ERROR: newSession.data?.id is undefined');
     return null;
   } catch (err) {
-    console.error('Failed to get or create managed session:', err);
+    console.error('[Session] ERROR: Failed to get or create managed session:', err);
     return null;
   }
 }

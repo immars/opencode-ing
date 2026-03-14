@@ -97,7 +97,11 @@ ${memoryContext.directoryInfo}
     feishuWSClient = await createWSClient(feishuClient, {
       onMessage: async (msg: any) => {
         console.error('[code-ing] Received Feishu message');
-        await handleFeishuMessage({ client, directory }, msg);
+        try {
+          await handleFeishuMessage({ client, directory }, msg);
+        } catch (err) {
+          console.error('[code-ing] ERROR in handleFeishuMessage:', err);
+        }
       },
       onConnect: async () => {
         console.error('[code-ing] Feishu WebSocket connected!');

@@ -19,7 +19,12 @@ export function loadContacts(projectDir: string): Contact[] {
   }
   try {
     const content = readFileSync(contactsPath, 'utf-8')
-    return JSON.parse(content)
+    const parsed = JSON.parse(content)
+    // Ensure we always return an array
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+    return parsed
   } catch {
     return []
   }
