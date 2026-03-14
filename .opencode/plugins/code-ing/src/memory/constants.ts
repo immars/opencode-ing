@@ -36,12 +36,16 @@ export const PATHS = {
 } as const;
 
 /** Default configuration values */
+/**
+ * L1 and L2 lookback increased from 3 to 5 to help agent remember
+ * more context from the past (issue #1)
+ */
 export const DEFAULTS = {
   L0_MAX_MESSAGES: 60,
   L1_SUMMARY_MAX_BYTES: 500,
   L2_SUMMARY_MAX_BYTES: 500,
-  L1_LOOKBACK_DAYS: 3,
-  L2_LOOKBACK_WEEKS: 3,
+  L1_LOOKBACK_DAYS: 5,
+  L2_LOOKBACK_WEEKS: 5,
   SESSION_MAX_AGE_DAYS: 1,
   SESSION_MAX_ROLLING: 3,
   SESSION_MAX_AGE_HOURS: 6,
