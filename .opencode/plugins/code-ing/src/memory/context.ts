@@ -67,11 +67,11 @@ export function buildMemoryContext(
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const recentMessages = readRecentMessages(projectDir, todayStr, 60);
 
-  // Read L1 summaries (last 3 days)
-  const dailySummaries = readDailySummaries(projectDir, 3);
+  // Read L1 summaries (last 5 days)
+  const dailySummaries = readDailySummaries(projectDir, 5);
 
-  // Read L2 summaries (last 3 weeks)
-  const weeklySummaries = readL2WeeklySummaries(projectDir, 3);
+  // Read L2 summaries (last 5 weeks)
+  const weeklySummaries = readL2WeeklySummaries(projectDir, 5);
 
   return {
     directoryInfo: getDirectoryInfo(projectDir),
