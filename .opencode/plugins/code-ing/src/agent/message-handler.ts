@@ -4,6 +4,8 @@ import { saveContact } from '../contacts.js';
 import { writeMessageRecord } from '../memory/l0.js';
 import { prettifyMessage } from '../prettifier.js';
 
+const AGENT_NAME = 'assistant';
+
 export interface MessageHandlerDeps {
   client: any;
   directory: string;
@@ -71,6 +73,7 @@ export async function handleFeishuMessage(
       const result = await client.session.prompt({
         path: { id: sessionId },
         body: {
+          agent: AGENT_NAME,
           parts: [{ type: 'text', text: textContent }],
         },
       });

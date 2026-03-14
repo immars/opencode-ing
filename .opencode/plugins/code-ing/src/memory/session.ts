@@ -8,6 +8,7 @@ import { DEFAULTS } from './constants.js';
 import { getFeishuContext, formatContextAsPrompt } from './context.js';
 
 const MANAGED_SESSION_NAME = 'Assistant Managed Session';
+const AGENT_NAME = 'assistant';
 const SESSION_MAX_AGE_HOURS = DEFAULTS.SESSION_MAX_AGE_HOURS;
 const SESSION_MAX_KEEP = DEFAULTS.SESSION_MAX_KEEP;
 
@@ -128,6 +129,7 @@ export async function getOrCreateManagedSession(
           await client.session.prompt({
             path: { id: newSessionId },
             body: {
+              agent: AGENT_NAME,
               parts: [{ type: 'text', text: `[System Context]\n\n${contextPrompt}` }],
             },
           });
