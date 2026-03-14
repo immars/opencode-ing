@@ -34,8 +34,33 @@ function getOrCreateClient(projectDir: string): { appId: string; appSecret: stri
   if (client) {
     cachedClient = client;
     cachedProjectDir = projectDir;
+    larkClientCache.clear();
   }
   return client;
+}
+
+const larkClientCache = new Map<string, any>();
+
+async function getOrCreateLarkClient(client: { appId: string; appSecret: string }): Promise<any | null> {
+  if (larkClientCache.has(client.appId)) {
+    return larkClientCache.get(client.appId);
+  }
+  
+  try {
+    const lark = await import("@larksuiteoapi/node-sdk");
+    const c = new lark.Client({ appId: client.appId, appSecret: client.appSecret });
+    larkClientCache.set(client.appId, c);
+    return c;
+  } catch (e) {
+    logger.error('Feishu', "Failed to create Lark client:", e);
+    return null;
+  }
+}
+
+async function getLarkClientByProject(projectDir: string): Promise<any | null> {
+  const client = getOrCreateClient(projectDir);
+  if (!client) return null;
+  return getOrCreateLarkClient(client);
 }
 
 async function withLarkClient<T>(
@@ -43,11 +68,9 @@ async function withLarkClient<T>(
   operation: (c: any) => Promise<T>,
   errorMsg?: string
 ): Promise<T | null> {
-  const client = getOrCreateClient(projectDir);
-  if (!client) return null;
+  const c = await getLarkClientByProject(projectDir);
+  if (!c) return null;
   try {
-    const lark = await import("@larksuiteoapi/node-sdk");
-    const c = new lark.Client({ appId: client.appId, appSecret: client.appSecret });
     return await operation(c);
   } catch (e) {
     logger.error('Feishu', errorMsg || "Operation failed:", e);
@@ -68,10 +91,10 @@ export async function sendMessage(
   content: string,
   richContent?: RichTextContent
 ): Promise<boolean> {
+  const c = await getOrCreateLarkClient(client);
+  if (!c) return false;
+  
   try {
-    const lark = await import("@larksuiteoapi/node-sdk");
-    const c = new lark.Client({ appId: client.appId, appSecret: client.appSecret });
-    
     let msgType = "text";
     let msgContent: string;
     

@@ -91,7 +91,10 @@ export async function handleFeishuMessage(
         const sendClient = createFeishuClient(directory);
         if (sendClient) {
           const pretty = prettifyMessage(responseText);
-          await sendMessage(sendClient, chatId, pretty.text, pretty.useRichText ? pretty.richContent : undefined);
+          const sent = await sendMessage(sendClient, chatId, pretty.text, pretty.useRichText ? pretty.richContent : undefined);
+          if (!sent) {
+            logger.error('MessageHandler', 'Failed to send message to Feishu');
+          }
         }
         writeMessageRecord(directory, todayStr, {
           timestamp: new Date().toISOString(),
@@ -102,7 +105,10 @@ export async function handleFeishuMessage(
       } else {
         const sendClient = createFeishuClient(directory);
         if (sendClient) {
-          await sendMessage(sendClient, chatId, 'Assistant finished processing.');
+          const sent = await sendMessage(sendClient, chatId, 'Assistant finished processing.');
+          if (!sent) {
+            logger.error('MessageHandler', 'Failed to send message to Feishu');
+          }
         }
       }
     } catch (err: any) {

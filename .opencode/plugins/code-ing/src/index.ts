@@ -120,6 +120,9 @@ ${memoryContext.directoryInfo}
       return '飞书连接失败';
     }
 
+    // 启动心跳检测
+    startHeartbeat();
+
     return (
       '飞书已连接！\n- App ID: ' +
       config.app_id +
