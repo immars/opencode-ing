@@ -50,9 +50,10 @@ export interface WeeklySummary {
  */
 export interface CronTask {
   name: string;
-  schedule: string;  // cron format: minute hour day month weekday
+  schedule: string;
   description: string;
   enabled: boolean;
+  author?: string;
   last_run?: string;
 }
 

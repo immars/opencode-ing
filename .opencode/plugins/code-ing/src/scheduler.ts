@@ -9,7 +9,7 @@ import { parseCronFile, getActiveTasks } from './memory/cron.js';
 import type { CronTask } from './memory/types.js';
 import { readCron, readCronSys, readTasks } from './memory/levels.js';
 import { getTaskContext, getCronContext, getCronSysContext, ensureMemoryPaths } from './memory/context.js';
-import { CronSysSessionManager, getOrCreateManagedSession } from './memory/session.js';
+import { CronSysSessionManager, getOrCreateManagedSession, getOrCreateChatSession } from './memory/session.js';
 import { logger } from './logger.js';
 
 let schedulerInterval: NodeJS.Timeout | null = null;
@@ -161,7 +161,13 @@ async function executeCronTask(
     const taskContent = extractTaskContent(fullCronContent, task.name);
     const contextPrompt = getCronContext(projectDir, taskContent);
 
-    const sessionId = await getOrCreateManagedSession(client);
+    let sessionId: string | null = null;
+    if (task.author) {
+      sessionId = await getOrCreateChatSession(client, projectDir, task.author);
+      logger.info('Scheduler', 'Using chat session for author:', task.author);
+    } else {
+      sessionId = await getOrCreateManagedSession(client);
+    }
 
     if (!sessionId) {
       logger.error('Scheduler', 'Failed to get or create session for CRON execution');

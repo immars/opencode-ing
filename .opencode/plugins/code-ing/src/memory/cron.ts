@@ -27,6 +27,7 @@ export function parseCronFile(content: string): CronTask[] {
     let schedule = '';
     let description = '';
     let enabled = true;
+    let author = '';
 
     for (const line of lines.slice(1)) {
       let trimmed = line.trim();
@@ -42,6 +43,8 @@ export function parseCronFile(content: string): CronTask[] {
         description = trimmed.substring(12).trim();
       } else if (trimmed.startsWith('enabled:')) {
         enabled = trimmed.substring(8).trim().toLowerCase() === 'true';
+      } else if (trimmed.startsWith('author:')) {
+        author = trimmed.substring(7).trim();
       }
     }
 
@@ -51,6 +54,7 @@ export function parseCronFile(content: string): CronTask[] {
         schedule,
         description,
         enabled,
+        author: author || undefined,
       });
     }
   }
