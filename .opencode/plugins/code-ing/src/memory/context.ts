@@ -245,3 +245,62 @@ export function formatContextAsPrompt(context: MemoryContext): string {
 
   return parts.join('\n\n');
 }
+
+// ============================================================================
+// CRON_SYS Compression Prompt Builder
+// ============================================================================
+
+const COMPRESSION_INSTRUCTIONS = `把下列<detail></detail>标签中的信息进行压缩处理。
+
+**压缩原则**：
+1. 用语简洁，描述事实
+2. 不超过500字
+3. 尽量包括关键信息
+4. 如果篇幅允许，尽量包括关键字，例如任务ID之类的信息
+
+**输出格式**：把回复用<summary></summary>标签围起来。`;
+
+/**
+ * Build compression prompt for L1 (daily) summary
+ */
+export function buildL1CompressionPrompt(projectDir: string): string {
+  const l0Content = getL0Content(projectDir);
+  return `${COMPRESSION_INSTRUCTIONS}
+
+<detail>
+${l0Content}
+</detail>`;
+}
+
+/**
+ * Build compression prompt for L2 (weekly) summary
+ */
+export function buildL2CompressionPrompt(projectDir: string): string {
+  const l1Content = getL1Content(projectDir);
+  return `${COMPRESSION_INSTRUCTIONS}
+
+<detail>
+${l1Content}
+</detail>`;
+}
+
+/**
+ * Build compression prompt based on task type
+ */
+export function buildCompressionPrompt(projectDir: string, taskType: 'L1' | 'L2'): string {
+  if (taskType === 'L1') {
+    return buildL1CompressionPrompt(projectDir);
+  }
+  return buildL2CompressionPrompt(projectDir);
+}
+
+/**
+ * Extract content from <summary> tags in agent response
+ */
+export function extractSummary(responseText: string): string | null {
+  const match = responseText.match(/<summary>([\s\S]*?)<\/summary>/);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return null;
+}

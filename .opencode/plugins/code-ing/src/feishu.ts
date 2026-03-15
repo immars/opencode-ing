@@ -130,7 +130,10 @@ export async function sendMessage(
 
 export async function checkConnection(projectDir: string): Promise<boolean> {
   const result = await withLarkClient(projectDir, async (c) => {
-    const result = await c.contact.user.get({ path: { user_id: "me" } });
+    const result = await c.request({
+      method: 'GET',
+      url: '/open-apis/bot/v3/info',
+    });
     return result.code === 0;
   }, "Connection check failed:");
   return result ?? false;

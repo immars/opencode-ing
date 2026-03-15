@@ -8,9 +8,19 @@
 import { parseCronFile, getActiveTasks } from './memory/cron.js';
 import type { CronTask } from './memory/types.js';
 import { readCron, readCronSys, readTasks } from './memory/levels.js';
-import { getTaskContext, getCronContext, getCronSysContext, ensureMemoryPaths } from './memory/context.js';
+import { 
+  getTaskContext, 
+  getCronContext, 
+  getCronSysContext, 
+  ensureMemoryPaths,
+  buildCompressionPrompt,
+  extractSummary,
+  getL1Path,
+  getL2Path
+} from './memory/context.js';
 import { CronSysSessionManager, getOrCreateManagedSession, getOrCreateChatSession } from './memory/session.js';
 import { logger } from './logger.js';
+import { writeFileSync } from 'fs';
 
 let schedulerInterval: NodeJS.Timeout | null = null;
 let isRunning = false;
@@ -57,6 +67,12 @@ export function startSchedulerWithAgent(
   schedulerInterval = setInterval(() => {
     executeScheduledTasks(projectDir, client);
   }, 60 * 1000);
+
+  // Test trigger: run CRON_SYS compression 10 seconds after startup
+  setTimeout(() => {
+    logger.info('Scheduler', 'Test trigger: running CRON_SYS compression (L1 + L2)');
+    testTriggerAllCronSys(projectDir, client);
+  }, 10 * 1000);
 }
 
 /**
@@ -202,9 +218,13 @@ async function executeCronSysTask(
     
     logger.info('Scheduler', 'Executing CRON_SYS task:', task.name);
 
-    const taskContent = extractTaskContent(fullCronSysContent, task.name);
-    const contextPrompt = getCronSysContext(projectDir, taskContent);
+    const taskType = detectCompressionType(task.name);
+    if (!taskType) {
+      logger.warn('Scheduler', 'Unknown CRON_SYS task type:', task.name);
+      return;
+    }
 
+    const compressionPrompt = buildCompressionPrompt(projectDir, taskType);
     const sessionManager = new CronSysSessionManager(client);
     const sessionId = await sessionManager.createSession();
 
@@ -213,18 +233,44 @@ async function executeCronSysTask(
       return;
     }
 
-    await client.session.prompt({
+    const result = await client.session.prompt({
       path: { id: sessionId },
       body: {
         agent: 'assistant',
-        parts: [{ type: 'text', text: contextPrompt }],
+        parts: [{ type: 'text', text: compressionPrompt }],
       },
     });
 
-    logger.info('Scheduler', 'CRON_SYS task completed:', task.name);
+    const response = (result as any)?.data;
+    const parts = response?.parts || [];
+    const textParts = parts.filter((p: any) => p.type === 'text');
+    const responseText = textParts.map((p: any) => p.text).join('\n');
+
+    const summary = extractSummary(responseText);
+    if (!summary) {
+      logger.error('Scheduler', 'No <summary> tag found in agent response');
+      return;
+    }
+
+    const targetPath = taskType === 'L1' ? getL1Path(projectDir) : getL2Path(projectDir);
+    writeFileSync(targetPath, summary, 'utf-8');
+    logger.info('Scheduler', 'CRON_SYS task completed:', task.name, '→', targetPath);
   } catch (err) {
     logger.error('Scheduler', 'Failed to execute CRON_SYS task:', err);
   }
+}
+
+/**
+ * Detect compression type from task name
+ */
+function detectCompressionType(taskName: string): 'L1' | 'L2' | null {
+  if (taskName.includes('L1') || taskName.toLowerCase().includes('daily')) {
+    return 'L1';
+  }
+  if (taskName.includes('L2') || taskName.toLowerCase().includes('weekly')) {
+    return 'L2';
+  }
+  return null;
 }
 
 /**
