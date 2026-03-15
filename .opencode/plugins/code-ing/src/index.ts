@@ -17,7 +17,7 @@ import { startSchedulerWithAgent } from './scheduler.js';
 import { loadContacts } from './contacts.js';
 import { setLoggerClient, logger } from './logger.js';
 
-const HEARTBEAT_INTERVAL = 30 * 60 * 1000;
+const HEARTBEAT_INTERVAL = 2 * 60 * 60 * 1000; // 2小时检测一次（飞书SDK自带重连机制）
 
 export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
   const { client, directory } = ctx;
@@ -40,7 +40,7 @@ ${memoryContext.directoryInfo}
   let feishuWSClient: any = null;
   let heartbeatTimer: NodeJS.Timeout | null = null;
 
-  // 启动心跳检测
+  // 启动心跳检测（只检测连接状态，不主动触发重连，依赖飞书SDK的自动重连）
   const startHeartbeat = () => {
     if (heartbeatTimer) {
       clearInterval(heartbeatTimer);
@@ -48,7 +48,9 @@ ${memoryContext.directoryInfo}
     heartbeatTimer = setInterval(async () => {
       const connected = await checkConnection(directory);
       if (!connected) {
-        await connectFeishu();
+        logger.warn('Feishu', 'Heartbeat check failed, waiting for SDK auto-reconnect...');
+      } else {
+        logger.info('Feishu', 'Heartbeat check: OK');
       }
     }, HEARTBEAT_INTERVAL);
   };
@@ -95,7 +97,7 @@ ${memoryContext.directoryInfo}
         }
       },
       onDisconnect: async () => {
-        logger.warn('code-ing', 'Feishu WebSocket disconnected');
+        logger.warn('Feishu', 'WebSocket disconnected, will auto-reconnect...');
       },
     });
 
