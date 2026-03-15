@@ -67,12 +67,6 @@ export function startSchedulerWithAgent(
   schedulerInterval = setInterval(() => {
     executeScheduledTasks(projectDir, client);
   }, 60 * 1000);
-
-  // Test trigger: run CRON_SYS compression 10 seconds after startup
-  setTimeout(() => {
-    logger.info('Scheduler', 'Test trigger: running CRON_SYS compression (L1 + L2)');
-    testTriggerAllCronSys(projectDir, client);
-  }, 10 * 1000);
 }
 
 /**
@@ -365,9 +359,19 @@ export function isSchedulerRunning(): boolean {
   return isRunning;
 }
 
-/**
- * Test trigger all CRON_SYS tasks (for testing purposes)
- */
+export async function testTriggerAllCron(
+  projectDir: string,
+  client: any
+): Promise<void> {
+  const cronContent = readCron(projectDir);
+  const userTasks = parseCronFile(cronContent);
+  const enabledUserTasks = userTasks.filter((t) => t.enabled);
+  
+  for (const task of enabledUserTasks) {
+    await executeCronTask(projectDir, client, task, cronContent);
+  }
+}
+
 export async function testTriggerAllCronSys(
   projectDir: string,
   client: any

@@ -1,5 +1,5 @@
 {
-  "name": "code-ing",
+  "name": "opencode-ing",
   "version": "1.0.0",
   "description": "OpenCode-ing Agent Plugin",
   "main": "dist/index.js",
@@ -7,7 +7,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@larksuiteoapi/node-sdk": "^1.1.0",

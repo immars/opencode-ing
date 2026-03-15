@@ -1,7 +1,5 @@
 {
   "dependencies": {
-    "@opencode-ai/plugin": "1.2.26",
-    "@larksuiteoapi/node-sdk": "^1.1.0",
-    "zod": "^3.23.0"
+    "@opencode-ai/plugin": "1.2.26"
   }
 }

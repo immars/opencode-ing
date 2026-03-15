@@ -23,13 +23,12 @@ important reference:
 ## Build / Development Commands
 
 ```bash
-# Build TypeScript (from .opencode/plugins/code-ing/)
-cd .opencode/plugins/code-ing
+# Build TypeScript
 npm run build          # Compile TypeScript to dist/
 npm run dev            # Watch mode for development
 
 # Type check only (no emit)
-npx tsc --noEmit
+npm run typecheck
 
 # Run the plugin (via OpenCode)
 # Start opencode in the project root directory
@@ -44,19 +43,18 @@ opencode
 
 ```
 opencode-ing/
+├── src/                    # Plugin source code (TypeScript)
+│   ├── index.ts            # Plugin entry point
+│   ├── config.ts           # Configuration loading
+│   ├── feishu.ts           # Feishu SDK integration
+│   ├── tools.ts            # OpenCode tool definitions
+│   ├── scheduler.ts        # Task scheduling
+│   ├── memory.ts           # Memory system facade
+│   ├── agent/              # Agent-specific modules
+│   └── memory/             # Memory system (L0/L1/L2/L9)
+├── dist/                   # Compiled output
 ├── .opencode/
-│   ├── plugins/code-ing/           # Main plugin code (TypeScript)
-│   │   ├── src/            # Source files
-│   │   │   ├── index.ts    # Plugin entry point
-│   │   │   ├── config.ts   # Configuration loading
-│   │   │   ├── feishu.ts   # Feishu SDK integration
-│   │   │   ├── tools.ts    # OpenCode tool definitions
-│   │   │   ├── scheduler.ts # Task scheduling
-│   │   │   ├── memory.ts   # Memory system facade
-│   │   │   ├── agent/      # Agent-specific modules
-│   │   │   └── memory/     # Memory system (L0/L1/L2/L9)
-│   │   ├── dist/           # Compiled output
-│   │   └── package.json
+│   ├── plugins/            # Plugin symlinks
 │   ├── skills/             # Project-specific skills
 │   └── agents/             # Agent configurations
 ├── templates/              # Template files for onboarding
@@ -70,7 +68,7 @@ opencode-ing/
 
 ## TypeScript Configuration
 
-**tsconfig.json** (located at `.opencode/plugins/code-ing/tsconfig.json`):
+**tsconfig.json** (located at project root):
 - Target: ES2022
 - Module: ESNext with bundler resolution
 - Strict mode enabled
@@ -289,7 +287,7 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
 ## Common Tasks
 
 ### Adding a new memory level
-1. Create module in `.opencode/plugins/code-ing/src/memory/`
+1. Create module in `src/memory/`
 2. Export from `memory/index.ts`
 3. Add types to `memory/types.ts`
 4. Update `buildMemoryContext()` in main memory module

@@ -1,7 +1,7 @@
 ---
 description: OpenCode-ing Agent - 长期运行的自主 agent，负责与飞书集成
 mode: primary
-model: minimax_cn/MiniMax-M2.5
+model: z_ai_cn/glm-5
 tools:
   write: true
   edit: true
