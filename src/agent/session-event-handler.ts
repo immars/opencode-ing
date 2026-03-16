@@ -2,6 +2,7 @@ import type { Event, Part, Message } from '@opencode-ai/sdk';
 import { parseChatIdFromTitle } from '../memory/session.js';
 import { loadFeishuConfig } from '../config.js';
 import { SESSION_PREFIXES } from '../memory/constants.js';
+import { writeMessageRecord } from '../memory/levels.js';
 import { logger } from '../logger.js';
 import { sendMarkdownMessage } from '../feishu.js';
 import { prettifyMessage } from '../prettifier.js';
@@ -73,6 +74,20 @@ export async function handleSessionIdle(
       logger.info('SessionEvent', 'Sent agent response to Feishu chat:', chatId);
     } else {
       logger.error('SessionEvent', 'Failed to send to Feishu chat:', chatId);
+    }
+
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    try {
+      writeMessageRecord(directory, todayStr, {
+        timestamp: new Date().toISOString(),
+        role: 'assistant',
+        content: textContent,
+        source: 'feishu',
+        chat_id: chatId,
+      }, chatId);
+    } catch (e) {
+      logger.error('SessionEvent', 'Failed to write message record:', e);
     }
 
     await processQueueIfExists(deps, chatId, sessionId);
