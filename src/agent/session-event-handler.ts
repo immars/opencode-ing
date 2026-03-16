@@ -9,25 +9,11 @@ import { parseChatIdFromTitle } from '../memory/session.js';
 import { loadFeishuConfig } from '../config.js';
 import { SESSION_PREFIXES } from '../memory/constants.js';
 import { logger } from '../logger.js';
+import { markMessageProcessed } from '../state.js';
 
 interface SessionEventDeps {
   directory: string;
   client: any;
-}
-
-const processedMessages = new Set<string>();
-const MAX_PROCESSED_CACHE = 100;
-
-function markMessageProcessed(messageId: string): boolean {
-  if (processedMessages.has(messageId)) {
-    return false;
-  }
-  processedMessages.add(messageId);
-  if (processedMessages.size > MAX_PROCESSED_CACHE) {
-    const first = processedMessages.values().next().value;
-    if (first) processedMessages.delete(first);
-  }
-  return true;
 }
 
 export async function handleSessionIdle(

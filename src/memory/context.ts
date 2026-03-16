@@ -4,25 +4,23 @@
  * Handles memory context building and variable substitution for CRON_SYS tasks
  */
 
-import { readFileSync, existsSync, writeFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import type { MemoryContext, TriggerType } from './types.js';
 import { 
-  readSoul, readPeople, readTasks, readCron, readCronSys, readAllL9,
-  readRecentMessages, readAllMessages,
+  readAllL9,
+  readTasks,
+  readCron,
+  readRecentMessages,
   readDailySummaries,
   readWeeklySummaries,
   getWeekStart
 } from './levels.js';
-import { L0_DIR, L1_DIR, L2_DIR, PATHS } from './constants.js';
+import { PATHS } from './constants.js';
 import { 
   formatLocalDate, 
   getTodayString,
-  ensureMemoryDir, 
-  getMemoryDir, 
-  getMemoryFilePath,
   getSessionL1Dir,
-  getSessionL2Dir,
   getSessionL1FilePath,
   getSessionL2FilePath
 } from './utils.js';
@@ -118,25 +116,6 @@ export function substituteVariables(
 
 export function hasVariables(content: string): boolean {
   return /\{L0(_content)?\}|\{L1(_content)?\}|\{L1_path\}|\{L2_path\}/.test(content);
-}
-
-export function ensureMemoryPaths(projectDir: string): void {
-  const today = getTodayString();
-  const weekStartStr = getWeekStart(new Date());
-
-  ensureMemoryDir(projectDir, L0_DIR);
-  ensureMemoryDir(projectDir, L1_DIR);
-  ensureMemoryDir(projectDir, L2_DIR);
-
-  const l0File = getMemoryFilePath(projectDir, L0_DIR, `${today}.md`);
-  const l1File = getMemoryFilePath(projectDir, L1_DIR, `${today}.md`);
-  const l2File = getMemoryFilePath(projectDir, L2_DIR, `${weekStartStr}.md`);
-
-  for (const file of [l0File, l1File, l2File]) {
-    if (!existsSync(file)) {
-      writeFileSync(file, '');
-    }
-  }
 }
 
 // ============================================================================

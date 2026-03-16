@@ -22,6 +22,7 @@ const TEST_DIR = join('/tmp', '.test-context-' + Date.now());
 const MEMORY_DIR = join(TEST_DIR, MEMORY_ROOT_DIR);
 const SESSION_DIR = join(MEMORY_DIR, 'sessions', 'test-chat-id');
 const SESSION_L0_DIR = join(SESSION_DIR, 'L0');
+const SESSION_L1_DIR = join(SESSION_DIR, 'L1');
 const GLOBAL_L1_DIR = join(MEMORY_DIR, 'L1');
 
 describe('Memory Context Module', () => {
@@ -30,7 +31,7 @@ describe('Memory Context Module', () => {
       rmSync(TEST_DIR, { recursive: true });
     }
     mkdirSync(SESSION_L0_DIR, { recursive: true });
-    mkdirSync(GLOBAL_L1_DIR, { recursive: true });
+    mkdirSync(SESSION_L1_DIR, { recursive: true });
   });
 
   afterEach(() => {
@@ -65,7 +66,7 @@ describe('Memory Context Module', () => {
 
     it('should return L1 content when files exist', () => {
       const today = new Date().toISOString().slice(0, 10);
-      const l1File = join(GLOBAL_L1_DIR, `${today}.md`);
+      const l1File = join(SESSION_L1_DIR, `${today}.md`);
       writeFileSync(l1File, 'Daily summary content');
 
       const content = getL1Content(TEST_DIR, 'test-chat-id');

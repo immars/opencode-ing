@@ -12,7 +12,6 @@ import {
   getTaskContext, 
   getCronContext, 
   getCronSysContext, 
-  ensureMemoryPaths,
   buildCompressionPrompt,
   extractSummary,
   getL1Path,
@@ -23,11 +22,16 @@ import { listAllSessions, getSessionL9FilePath, getSessionL1FilePath, getSession
 import { logger } from './logger.js';
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
-
-let schedulerInterval: NodeJS.Timeout | null = null;
-let isRunning = false;
-let schedulerClient: any = null;
-let schedulerProjectDir: string = '';
+import {
+  getSchedulerInterval,
+  setSchedulerInterval,
+  getSchedulerRunningState,
+  setSchedulerRunning,
+  getSchedulerClient,
+  setSchedulerClient,
+  getSchedulerProjectDir,
+  setSchedulerProjectDir,
+} from './state.js';
 
 /**
  * Start the scheduler with callback for legacy support
@@ -36,17 +40,18 @@ export function startScheduler(
   projectDir: string,
   callback: (tasks: CronTask[]) => void
 ): void {
-  if (isRunning) {
+  if (isSchedulerRunning()) {
     return;
   }
 
-  isRunning = true;
+  setSchedulerRunning(true);
 
   checkAndRun(projectDir, callback);
 
-  schedulerInterval = setInterval(() => {
+  const interval = setInterval(() => {
     checkAndRun(projectDir, callback);
   }, 60 * 1000);
+  setSchedulerInterval(interval);
 }
 
 /**
@@ -56,32 +61,34 @@ export function startSchedulerWithAgent(
   projectDir: string,
   client: any
 ): void {
-  if (isRunning) {
+  if (isSchedulerRunning()) {
     return;
   }
 
-  isRunning = true;
-  schedulerClient = client;
-  schedulerProjectDir = projectDir;
+  setSchedulerRunning(true);
+  setSchedulerClient(client);
+  setSchedulerProjectDir(projectDir);
 
   executeScheduledTasks(projectDir, client);
 
-  schedulerInterval = setInterval(() => {
+  const interval = setInterval(() => {
     executeScheduledTasks(projectDir, client);
   }, 60 * 1000);
+  setSchedulerInterval(interval);
 }
 
 /**
  * Stop the scheduler
  */
 export function stopScheduler(): void {
-  if (schedulerInterval) {
-    clearInterval(schedulerInterval);
-    schedulerInterval = null;
+  const interval = getSchedulerInterval();
+  if (interval) {
+    clearInterval(interval);
+    setSchedulerInterval(null);
   }
-  isRunning = false;
-  schedulerClient = null;
-  schedulerProjectDir = '';
+  setSchedulerRunning(false);
+  setSchedulerClient(null);
+  setSchedulerProjectDir('');
 }
 
 /**
@@ -237,8 +244,6 @@ async function executeCronSysTask(
   fullCronSysContent: string
 ): Promise<void> {
   try {
-    ensureMemoryPaths(projectDir);
-    
     logger.info('Scheduler', 'Executing CRON_SYS task:', task.name);
 
     const taskType = detectCompressionType(task.name);
@@ -565,7 +570,7 @@ export function getNextScheduledTime(): Date {
  * Check if scheduler is running
  */
 export function isSchedulerRunning(): boolean {
-  return isRunning;
+  return getSchedulerRunningState();
 }
 
 export async function testTriggerAllCron(

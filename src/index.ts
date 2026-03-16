@@ -20,6 +20,12 @@ import { createTools } from './tools.js';
 import { startSchedulerWithAgent } from './scheduler.js';
 import { loadContacts } from './contacts.js';
 import { setLoggerClient, logger } from './logger.js';
+import {
+  getFeishuWSClient,
+  setFeishuWSClient,
+  getHeartbeatTimer,
+  setHeartbeatTimer,
+} from './state.js';
 
 const HEARTBEAT_INTERVAL = 2 * 60 * 60 * 1000; // 2小时检测一次（飞书SDK自带重连机制）
 
@@ -28,15 +34,13 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
 
   setLoggerClient(client);
 
-  let feishuWSClient: any = null;
-  let heartbeatTimer: NodeJS.Timeout | null = null;
-
-  // 启动心跳检测（只检测连接状态，不主动触发重连，依赖飞书SDK的自动重连）
+  // 启动心跳检测(只检测连接状态，不主动触发重连，依赖飞书SDK的自动重连)
   const startHeartbeat = () => {
-    if (heartbeatTimer) {
-      clearInterval(heartbeatTimer);
+    const existingTimer = getHeartbeatTimer();
+    if (existingTimer) {
+      clearInterval(existingTimer);
     }
-    heartbeatTimer = setInterval(async () => {
+    const timer = setInterval(async () => {
       const connected = await checkConnection(directory);
       if (!connected) {
         logger.warn('Feishu', 'Heartbeat check failed, waiting for SDK auto-reconnect...');
@@ -44,6 +48,7 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
         logger.info('Feishu', 'Heartbeat check: OK');
       }
     }, HEARTBEAT_INTERVAL);
+    setHeartbeatTimer(timer);
   };
 
   startSchedulerWithAgent(directory, client);
@@ -66,12 +71,13 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
       return '飞书客户端创建失败';
     }
 
-    if (feishuWSClient) {
-      closeWSClient(feishuWSClient);
+    const existingWSClient = getFeishuWSClient();
+    if (existingWSClient) {
+      closeWSClient(existingWSClient);
     }
 
     logger.info('code-ing', 'Connecting to Feishu...');
-    feishuWSClient = await createWSClient(feishuClient, {
+    const newWSClient = await createWSClient(feishuClient, {
       onMessage: async (msg: any) => {
         try {
           await handleFeishuMessage({ client, directory }, msg);
@@ -92,9 +98,11 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
       },
     });
 
-    if (!feishuWSClient) {
+    if (!newWSClient) {
       return '飞书连接失败';
     }
+
+    setFeishuWSClient(newWSClient);
 
     // 启动心跳检测
     startHeartbeat();

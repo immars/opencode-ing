@@ -2,6 +2,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadFeishuConfig } from "./config.js";
 import { logger } from "./logger.js";
+import {
+  getCachedClient,
+  setCachedClient,
+  getCachedProjectDir,
+  setCachedProjectDir,
+  getLarkClientFromCache,
+  setLarkClientToCache,
+  clearLarkClientCache,
+} from "./state.js";
 
 export interface FeishuWSClient {
   wsClient?: any;
@@ -31,33 +40,29 @@ export function createFeishuClient(projectDir: string): { appId: string; appSecr
   return { appId: config.app_id, appSecret: config.app_secret };
 }
 
-let cachedClient: { appId: string; appSecret: string } | null = null;
-let cachedProjectDir: string | null = null;
-
 function getOrCreateClient(projectDir: string): { appId: string; appSecret: string } | null {
-  if (cachedProjectDir === projectDir && cachedClient) {
-    return cachedClient;
+  if (getCachedProjectDir() === projectDir && getCachedClient()) {
+    return getCachedClient();
   }
   const client = createFeishuClient(projectDir);
   if (client) {
-    cachedClient = client;
-    cachedProjectDir = projectDir;
-    larkClientCache.clear();
+    setCachedClient(client);
+    setCachedProjectDir(projectDir);
+    clearLarkClientCache();
   }
   return client;
 }
 
-const larkClientCache = new Map<string, any>();
-
 async function getOrCreateLarkClient(client: { appId: string; appSecret: string }): Promise<any | null> {
-  if (larkClientCache.has(client.appId)) {
-    return larkClientCache.get(client.appId);
+  const cached = getLarkClientFromCache(client.appId);
+  if (cached) {
+    return cached;
   }
   
   try {
     const lark = await import("@larksuiteoapi/node-sdk");
     const c = new lark.Client({ appId: client.appId, appSecret: client.appSecret });
-    larkClientCache.set(client.appId, c);
+    setLarkClientToCache(client.appId, c);
     return c;
   } catch (e) {
     logger.error('Feishu', "Failed to create Lark client:", e);

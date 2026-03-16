@@ -4,6 +4,8 @@
  * Provides unified logging via OpenCode plugin's client.app.log API
  */
 
+import { getLogClient, setLogClient as setStateLogClient } from './state.js';
+
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 interface LogClient {
@@ -19,10 +21,8 @@ interface LogClient {
   };
 }
 
-let _client: LogClient | null = null;
-
 export function setLoggerClient(client: LogClient): void {
-  _client = client;
+  setStateLogClient(client as any);
 }
 
 function formatArgs(args: unknown[]): string {
@@ -39,9 +39,9 @@ function formatArgs(args: unknown[]): string {
 
 async function writeLog(level: LogLevel, service: string, ...args: unknown[]): Promise<void> {
   const message = formatArgs(args);
+  const client = getLogClient() as LogClient | null;
   
-  // Fallback to console if client not set
-  if (!_client) {
+  if (!client) {
     const prefix = `[${service}]`;
     switch (level) {
       case 'error':
@@ -57,11 +57,10 @@ async function writeLog(level: LogLevel, service: string, ...args: unknown[]): P
   }
 
   try {
-    await _client.app.log({
+    await client.app.log({
       body: { service, level, message }
     });
   } catch {
-    // Fallback to console if log API fails
     console.error(`[${service}]`, ...args);
   }
 }
