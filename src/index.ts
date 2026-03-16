@@ -12,8 +12,9 @@ import type { Plugin, Hooks } from '@opencode-ai/plugin';
 import { buildMemoryContext, loadFeishuConfig } from './memory.js';
 import { createFeishuClient, createWSClient, closeWSClient, checkConnection, sendMessage } from './feishu.js';
 import { handleFeishuMessage } from './agent/message-handler.js';
+import { createSessionEventHandler } from './agent/session-event-handler.js';
 import { createTools } from './tools.js';
-import { startSchedulerWithAgent } from './scheduler.js';
+import { startSchedulerWithAgent, testTriggerAllCron } from './scheduler.js';
 import { loadContacts } from './contacts.js';
 import { setLoggerClient, logger } from './logger.js';
 
@@ -56,6 +57,17 @@ ${memoryContext.directoryInfo}
   };
 
   startSchedulerWithAgent(directory, client);
+
+  // Debug: 10秒后触发一次 CRON.md 处理
+  setTimeout(async () => {
+    logger.info('code-ing', 'Triggering CRON.md debug processing...');
+    try {
+      await testTriggerAllCron(directory, client);
+      logger.info('code-ing', 'CRON.md debug processing completed');
+    } catch (err) {
+      logger.error('code-ing', 'CRON.md debug processing failed:', err);
+    }
+  }, 10 * 1000);
 
   const connectFeishu = async (): Promise<string> => {
     logger.info('code-ing', 'Connecting to Feishu...');
@@ -127,8 +139,11 @@ ${memoryContext.directoryInfo}
 
   const tools = createTools({ directory, client, connectFeishu });
 
+  const handleSessionEvent = createSessionEventHandler({ directory, client });
+
   return {
     tool: tools,
+    event: handleSessionEvent,
   };
 };
 
