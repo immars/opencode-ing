@@ -200,13 +200,5 @@ function extractTextFromParts(parts: Part[]): string {
     }
   }
 
-  return textParts.join('\n');
-}
-
-async function getFeishuClientFromConfig(directory: string): Promise<{ appId: string; appSecret: string } | null> {
-  const config = loadFeishuConfig(directory);
-  if (!config?.app_id || !config?.app_secret) {
-    return null;
-  }
-  return { appId: config.app_id, appSecret: config.app_secret };
+    return textParts.join('\n');
 }

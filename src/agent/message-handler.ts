@@ -1,4 +1,4 @@
-import { createFeishuClient, sendMarkdownMessage, addReaction, removeReaction } from '../feishu.js';
+import { createFeishuClient, sendMarkdownMessage, addReaction, removeReaction, parseFeishuMessageContent } from '../feishu.js';
 import { getOrCreateChatSession } from '../memory/session.js';
 import { saveContact } from '../contacts.js';
 import { writeMessageRecord } from '../memory/levels.js';
@@ -34,13 +34,7 @@ export async function handleFeishuMessage(
   const rawContent = msg.message?.content || '';
   const senderId = msg.sender?.sender_id?.open_id;
   const senderName = msg.sender?.sender?.tenant_key;
-  let textContent = rawContent;
-
-  try {
-    const parsed = JSON.parse(rawContent);
-    textContent = parsed.text || rawContent;
-  } catch (e) {
-  }
+  const textContent = parseFeishuMessageContent(rawContent);
 
   if (!textContent || !chatId) return;
 

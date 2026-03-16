@@ -2,26 +2,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { loadFeishuConfig } from "./config.js";
 import { logger } from "./logger.js";
+import type { FeishuCard } from "./prettifier.js";
 
-/** Cached Feishu client credentials */
-let cachedClient: { appId: string; appSecret: string } | null = null;
-
-/** Project directory for cached client */
-let cachedProjectDir: string | null = null;
-
-/** Lark API client cache by app ID */
-const larkClientCache = new Map<string, any>();
-
-/** WebSocket client instance */
-let feishuWSClient: any = null;
-
-export function getFeishuWSClient(): any {
-  return feishuWSClient;
-}
-
-export function setFeishuWSClient(client: any): void {
-  feishuWSClient = client;
-}
+// ============================================================================
+// Types & Interfaces
+// ============================================================================
 
 export interface FeishuWSClient {
   wsClient?: any;
@@ -41,8 +26,41 @@ export interface FileSendResult {
   error?: string;
 }
 
+export interface RichTextContent {
+  zh_cn: {
+    title: string;
+    content: Array<Array<{ tag: string; text?: string; href?: string; style?: string[] }>>;
+  };
+}
+
+// ============================================================================
+// State & Cache
+// ============================================================================
+
+const REACTION_EMOJI = "SMILE";
+
+/** Cached Feishu client credentials */
+let cachedClient: { appId: string; appSecret: string } | null = null;
+
+/** Project directory for cached client */
+let cachedProjectDir: string | null = null;
+
+/** Lark API client cache by app ID */
+const larkClientCache = new Map<string, any>();
+
+/** WebSocket client instance */
+let feishuWSClient: any = null;
+
 /** Heartbeat timer for connection checks */
 let heartbeatTimer: NodeJS.Timeout | null = null;
+
+export function getFeishuWSClient(): any {
+  return feishuWSClient;
+}
+
+export function setFeishuWSClient(client: any): void {
+  feishuWSClient = client;
+}
 
 export function getHeartbeatTimer(): NodeJS.Timeout | null {
   return heartbeatTimer;
@@ -52,7 +70,9 @@ export function setHeartbeatTimer(timer: NodeJS.Timeout | null): void {
   heartbeatTimer = timer;
 }
 
-const REACTION_EMOJI = "SMILE";
+// ============================================================================
+// Client Initialization & Access
+// ============================================================================
 
 export function createFeishuClient(projectDir: string): { appId: string; appSecret: string } | null {
   const config = loadFeishuConfig(projectDir);
@@ -117,14 +137,33 @@ async function withLarkClient<T>(
   }
 }
 
-import type { FeishuCard } from "./prettifier.js";
-
-export interface RichTextContent {
-  zh_cn: {
-    title: string;
-    content: Array<Array<{ tag: string; text?: string; href?: string; style?: string[] }>>;
-  };
+export async function checkConnection(projectDir: string): Promise<boolean> {
+  const result = await withLarkClient(projectDir, async (c) => {
+    const result = await c.request({
+      method: 'GET',
+      url: '/open-apis/bot/v3/info',
+    });
+    return result.code === 0;
+  }, "Connection check failed:");
+  return result ?? false;
 }
+
+// ============================================================================
+// Message Parsing & Formatting
+// ============================================================================
+
+export function parseFeishuMessageContent(rawContent: string): string {
+  try {
+    const parsed = JSON.parse(rawContent);
+    return parsed.text || rawContent;
+  } catch (e) {
+    return rawContent;
+  }
+}
+
+// ============================================================================
+// Message Sending
+// ============================================================================
 
 /**
  * Send a text or rich text message to Feishu
@@ -210,16 +249,88 @@ export async function sendMarkdownMessage(
   return sendCardMessage(projectDir, chatId, card);
 }
 
-export async function checkConnection(projectDir: string): Promise<boolean> {
+async function sendFileMessage(
+  projectDir: string,
+  chatId: string,
+  fileKey: string
+): Promise<FileSendResult> {
   const result = await withLarkClient(projectDir, async (c) => {
-    const result = await c.request({
-      method: 'GET',
-      url: '/open-apis/bot/v3/info',
+    const res = await c.im.message.create({
+      params: { receive_id_type: 'chat_id' },
+      data: {
+        receive_id: chatId,
+        msg_type: 'file',
+        content: JSON.stringify({ file_key: fileKey }),
+      },
     });
-    return result.code === 0;
-  }, "Connection check failed:");
-  return result ?? false;
+    
+    if (res.code !== 0) {
+      return {
+        success: false,
+        error: res.msg || 'Unknown error',
+      };
+    }
+    
+    return {
+      success: true,
+      messageId: res.data?.message_id,
+    };
+  }, `Failed to send file message to chat: ${chatId}`);
+  
+  return result ?? { success: false, error: 'Failed to get Lark client' };
 }
+
+// ============================================================================
+// File Management
+// ============================================================================
+
+export async function uploadFile(
+  projectDir: string,
+  fileName: string,
+  fileBuffer: Buffer
+): Promise<FileUploadResult | null> {
+  const result = await withLarkClient(projectDir, async (c) => {
+    const res = await c.im.file.create({
+      data: {
+        file_type: 'stream',
+        file_name: fileName,
+        file: fileBuffer,
+      },
+    });
+    
+    // im.file.create returns { file_key: '...' } directly, NOT { code, msg, data }
+    if (!res?.file_key) {
+      return null;
+    }
+    
+    return {
+      fileKey: res.file_key,
+      fileName,
+    };
+  }, `Failed to upload file: ${fileName}`);
+  
+  return result;
+}
+
+export async function sendFileToChat(
+  projectDir: string,
+  chatId: string,
+  filePath: string
+): Promise<FileSendResult> {
+  const fileName = path.basename(filePath);
+  const fileBuffer = await fs.readFile(filePath);
+  const uploadResult = await uploadFile(projectDir, fileName, fileBuffer);
+  
+  if (!uploadResult) {
+    return { success: false, error: 'Failed to upload file' };
+  }
+  
+  return sendFileMessage(projectDir, chatId, uploadResult.fileKey);
+}
+
+// ============================================================================
+// Message Reactions
+// ============================================================================
 
 export async function addReaction(
   projectDir: string,
@@ -260,80 +371,9 @@ export async function removeReaction(
   return result ?? false;
 }
 
-export async function uploadFile(
-  projectDir: string,
-  fileName: string,
-  fileBuffer: Buffer
-): Promise<FileUploadResult | null> {
-  const result = await withLarkClient(projectDir, async (c) => {
-    const res = await c.im.file.create({
-      data: {
-        file_type: 'stream',
-        file_name: fileName,
-        file: fileBuffer,
-      },
-    });
-    
-    // im.file.create returns { file_key: '...' } directly, NOT { code, msg, data }
-    if (!res?.file_key) {
-      return null;
-    }
-    
-    return {
-      fileKey: res.file_key,
-      fileName,
-    };
-  }, `Failed to upload file: ${fileName}`);
-  
-  return result;
-}
-
-async function sendFileMessage(
-  projectDir: string,
-  chatId: string,
-  fileKey: string
-): Promise<FileSendResult> {
-  const result = await withLarkClient(projectDir, async (c) => {
-    const res = await c.im.message.create({
-      params: { receive_id_type: 'chat_id' },
-      data: {
-        receive_id: chatId,
-        msg_type: 'file',
-        content: JSON.stringify({ file_key: fileKey }),
-      },
-    });
-    
-    if (res.code !== 0) {
-      return {
-        success: false,
-        error: res.msg || 'Unknown error',
-      };
-    }
-    
-    return {
-      success: true,
-      messageId: res.data?.message_id,
-    };
-  }, `Failed to send file message to chat: ${chatId}`);
-  
-  return result ?? { success: false, error: 'Failed to get Lark client' };
-}
-
-export async function sendFileToChat(
-  projectDir: string,
-  chatId: string,
-  filePath: string
-): Promise<FileSendResult> {
-  const fileName = path.basename(filePath);
-  const fileBuffer = await fs.readFile(filePath);
-  const uploadResult = await uploadFile(projectDir, fileName, fileBuffer);
-  
-  if (!uploadResult) {
-    return { success: false, error: 'Failed to upload file' };
-  }
-  
-  return sendFileMessage(projectDir, chatId, uploadResult.fileKey);
-}
+// ============================================================================
+// WebSocket Management
+// ============================================================================
 
 export async function createWSClient(
   client: { appId: string; appSecret: string },
