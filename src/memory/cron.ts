@@ -177,3 +177,33 @@ export function shouldRunNow(task: CronTask, currentTime: Date): boolean {
 export function getActiveTasks(tasks: CronTask[], currentTime: Date = new Date()): CronTask[] {
   return tasks.filter((task) => shouldRunNow(task, currentTime));
 }
+
+/**
+ * Extract single task content from full cron file content
+ */
+export function extractTaskContent(fullContent: string, taskName: string): string {
+  const sections = fullContent.split(/^# /m);
+  
+  for (const section of sections) {
+    if (!section.trim()) continue;
+    
+    const lines = section.split('\n');
+    const title = lines[0].trim();
+    
+    if (title === taskName) {
+      return section;
+    }
+    
+    for (let line of lines.slice(1)) {
+      let trimmed = line.trim();
+      if (trimmed.startsWith('* ')) {
+        trimmed = trimmed.substring(2);
+      }
+      if (trimmed.startsWith('name:') && trimmed.substring(5).trim() === taskName) {
+        return section;
+      }
+    }
+  }
+  
+  return '';
+}

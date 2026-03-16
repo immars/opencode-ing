@@ -5,7 +5,7 @@
  * Executes TASK.md, CRON.md, and CRON_SYS.md tasks by prompting the agent
  */
 
-import { parseCronFile, getActiveTasks } from './memory/cron.js';
+import { parseCronFile, getActiveTasks, extractTaskContent } from './memory/cron.js';
 import type { CronTask } from './memory/types.js';
 import { readCron, readCronSys, readTasks, readSessionCron, readSessionCronSys, readSessionTasks } from './memory/levels.js';
 import { 
@@ -91,6 +91,11 @@ export function stopScheduler(): void {
   setSchedulerProjectDir('');
 }
 
+function getActiveTasksFromContent(content: string, now: Date): CronTask[] {
+  const tasks = parseCronFile(content);
+  return getActiveTasks(tasks.filter(t => t.enabled), now);
+}
+
 /**
  * Execute all scheduled tasks by prompting the agent
  */
@@ -112,24 +117,15 @@ async function executeScheduledTasks(
   const cronContent = readCron(projectDir);
   const cronSysContent = readCronSys(projectDir);
 
-  const userTasks = parseCronFile(cronContent);
-  const systemTasks = parseCronFile(cronSysContent);
-
-  const enabledUserTasks = userTasks.filter((t) => t.enabled);
-  const enabledSystemTasks = systemTasks.filter((t) => t.enabled);
-
-  const activeUserTasks = getActiveTasks(enabledUserTasks, now);
-  const activeSystemTasks = getActiveTasks(enabledSystemTasks, now);
-
   if (taskContent.trim()) {
     await executeTask(projectDir, client);
   }
 
-  for (const task of activeUserTasks) {
+  for (const task of getActiveTasksFromContent(cronContent, now)) {
     await executeCronTask(projectDir, client, task, cronContent);
   }
 
-  for (const task of activeSystemTasks) {
+  for (const task of getActiveTasksFromContent(cronSysContent, now)) {
     await executeCronSysTask(projectDir, client, task, cronSysContent);
   }
 
@@ -140,27 +136,32 @@ async function executeScheduledTasks(
     const sessionCronContent = readSessionCron(projectDir, chatId);
     const sessionCronSysContent = readSessionCronSys(projectDir, chatId);
 
-    const sessionUserTasks = parseCronFile(sessionCronContent);
-    const sessionSystemTasks = parseCronFile(sessionCronSysContent);
-
-    const enabledSessionUserTasks = sessionUserTasks.filter((t) => t.enabled);
-    const enabledSessionSystemTasks = sessionSystemTasks.filter((t) => t.enabled);
-
-    const activeSessionUserTasks = getActiveTasks(enabledSessionUserTasks, now);
-    const activeSessionSystemTasks = getActiveTasks(enabledSessionSystemTasks, now);
-
     if (sessionTaskContent.trim()) {
       await executeSessionTask(projectDir, client, chatId, sessionTaskContent);
     }
 
-    for (const task of activeSessionUserTasks) {
+    for (const task of getActiveTasksFromContent(sessionCronContent, now)) {
       await executeSessionCronTask(projectDir, client, task, sessionCronContent, chatId);
     }
 
-    for (const task of activeSessionSystemTasks) {
+    for (const task of getActiveTasksFromContent(sessionCronSysContent, now)) {
       await executeSessionCronSysTask(projectDir, client, task, sessionCronSysContent, chatId);
     }
   }
+}
+
+async function executeAgentPrompt(
+  client: any,
+  sessionId: string,
+  promptText: string
+): Promise<any> {
+  return client.session.prompt({
+    path: { id: sessionId },
+    body: {
+      agent: 'assistant',
+      parts: [{ type: 'text', text: promptText }],
+    },
+  });
 }
 
 /**
@@ -181,13 +182,7 @@ async function executeTask(
       return;
     }
 
-    await client.session.prompt({
-      path: { id: sessionId },
-      body: {
-        agent: 'assistant',
-        parts: [{ type: 'text', text: contextPrompt }],
-      },
-    });
+    await executeAgentPrompt(client, sessionId, contextPrompt);
 
     logger.info('Scheduler', 'TASK.md execution completed');
   } catch (err) {
@@ -223,13 +218,7 @@ async function executeCronTask(
       return;
     }
 
-    await client.session.prompt({
-      path: { id: sessionId },
-      body: {
-        agent: 'assistant',
-        parts: [{ type: 'text', text: contextPrompt }],
-      },
-    });
+    await executeAgentPrompt(client, sessionId, contextPrompt);
 
     logger.info('Scheduler', 'CRON task completed:', task.name);
   } catch (err) {
@@ -268,6 +257,20 @@ async function executeCronSysTask(
   }
 }
 
+async function executeCompressionPrompt(
+  client: any,
+  sessionId: string,
+  compressionPrompt: string
+): Promise<string | null> {
+  const result = await executeAgentPrompt(client, sessionId, compressionPrompt);
+  const response = (result as any)?.data;
+  const parts = response?.parts || [];
+  const textParts = parts.filter((p: any) => p.type === 'text');
+  const responseText = textParts.map((p: any) => p.text).join('\n');
+
+  return extractSummary(responseText);
+}
+
 async function compressSession(
   projectDir: string,
   client: any,
@@ -284,20 +287,7 @@ async function compressSession(
   }
 
   try {
-    const result = await client.session.prompt({
-      path: { id: sessionId },
-      body: {
-        agent: 'assistant',
-        parts: [{ type: 'text', text: compressionPrompt }],
-      },
-    });
-
-    const response = (result as any)?.data;
-    const parts = response?.parts || [];
-    const textParts = parts.filter((p: any) => p.type === 'text');
-    const responseText = textParts.map((p: any) => p.text).join('\n');
-
-    const summary = extractSummary(responseText);
+    const summary = await executeCompressionPrompt(client, sessionId, compressionPrompt);
     if (!summary) {
       logger.error('Scheduler', 'No <summary> tag found for session:', chatId);
       return;
@@ -336,13 +326,7 @@ async function executeSessionTask(
       return;
     }
 
-    await client.session.prompt({
-      path: { id: sessionId },
-      body: {
-        agent: 'assistant',
-        parts: [{ type: 'text', text: contextPrompt }],
-      },
-    });
+    await executeAgentPrompt(client, sessionId, contextPrompt);
 
     logger.info('Scheduler', 'Session TASK.md execution completed for:', chatId);
   } catch (err) {
@@ -373,13 +357,7 @@ async function executeSessionCronTask(
       return;
     }
 
-    await client.session.prompt({
-      path: { id: sessionId },
-      body: {
-        agent: 'assistant',
-        parts: [{ type: 'text', text: contextPrompt }],
-      },
-    });
+    await executeAgentPrompt(client, sessionId, contextPrompt);
 
     logger.info('Scheduler', 'Session CRON task completed:', task.name, 'for:', chatId);
   } catch (err) {
@@ -420,20 +398,7 @@ async function executeSessionCronSysTask(
       return;
     }
 
-    const result = await client.session.prompt({
-      path: { id: sessionId },
-      body: {
-        agent: 'assistant',
-        parts: [{ type: 'text', text: compressionPrompt }],
-      },
-    });
-
-    const response = (result as any)?.data;
-    const parts = response?.parts || [];
-    const textParts = parts.filter((p: any) => p.type === 'text');
-    const responseText = textParts.map((p: any) => p.text).join('\n');
-
-    const summary = extractSummary(responseText);
+    const summary = await executeCompressionPrompt(client, sessionId, compressionPrompt);
     if (!summary) {
       logger.error('Scheduler', 'No <summary> tag found in agent response');
       return;
@@ -482,36 +447,6 @@ function detectCompressionType(taskName: string): 'L1' | 'L2' | null {
 }
 
 /**
- * Extract single task content from full cron file content
- */
-function extractTaskContent(fullContent: string, taskName: string): string {
-  const sections = fullContent.split(/^# /m);
-  
-  for (const section of sections) {
-    if (!section.trim()) continue;
-    
-    const lines = section.split('\n');
-    const title = lines[0].trim();
-    
-    if (title === taskName) {
-      return section;
-    }
-    
-    for (let line of lines.slice(1)) {
-      let trimmed = line.trim();
-      if (trimmed.startsWith('* ')) {
-        trimmed = trimmed.substring(2);
-      }
-      if (trimmed.startsWith('name:') && trimmed.substring(5).trim() === taskName) {
-        return section;
-      }
-    }
-  }
-  
-  return '';
-}
-
-/**
  * Check if any tasks should run now (legacy function)
  */
 function checkAndRun(
@@ -528,16 +463,10 @@ function checkAndRun(
   const cronContent = readCron(projectDir);
   const cronSysContent = readCronSys(projectDir);
 
-  const userTasks = parseCronFile(cronContent);
-  const systemTasks = parseCronFile(cronSysContent);
-
-  const enabledUserTasks = userTasks.filter((t) => t.enabled);
-  const enabledSystemTasks = systemTasks.filter((t) => t.enabled);
-
-  const activeUserTasks = getActiveTasks(enabledUserTasks, now);
-  const activeSystemTasks = getActiveTasks(enabledSystemTasks, now);
-
-  const allActiveTasks = [...activeUserTasks, ...activeSystemTasks];
+  const allActiveTasks = [
+    ...getActiveTasksFromContent(cronContent, now),
+    ...getActiveTasksFromContent(cronSysContent, now)
+  ];
 
   if (allActiveTasks.length > 0) {
     callback(allActiveTasks);
