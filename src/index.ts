@@ -122,9 +122,9 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
   type SessionType = 'chat' | 'cron_sys' | 'other';
   const sessionTypeCache = new Map<string, SessionType>();
 
-  const getSessionType = async (sessionId: string): Promise<SessionType> => {
+  const getSessionType = async (sessionId: string): Promise<{ type: SessionType; title: string }> => {
     if (sessionTypeCache.has(sessionId)) {
-      return sessionTypeCache.get(sessionId)!;
+      return { type: sessionTypeCache.get(sessionId)!, title: '(cached)' };
     }
 
     try {
@@ -141,9 +141,9 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
       }
 
       sessionTypeCache.set(sessionId, type);
-      return type;
+      return { type, title };
     } catch {
-      return 'other';
+      return { type: 'other', title: '(error)' };
     }
   };
 
@@ -151,7 +151,8 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
     const sessionId = input.sessionID;
     if (!sessionId) return;
 
-    const sessionType = await getSessionType(sessionId);
+    const { type: sessionType, title } = await getSessionType(sessionId);
+    logger.info('SystemTransform', `sessionId=${sessionId?.slice(0, 8)}... title="${title}" type=${sessionType}`);
 
     if (sessionType === 'chat') {
       try {
@@ -160,6 +161,7 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
 
         if (contextPrompt) {
           output.system.push(`[Memory Context]\n\n${contextPrompt}`);
+          logger.info('SystemTransform', `Injected full context (${contextPrompt.length} chars)`);
         }
       } catch (err) {
         logger.error('code-ing', 'Failed to inject memory context:', err);
@@ -169,10 +171,13 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
         const soul = readSoul(directory);
         if (soul) {
           output.system.push(`[Memory Context]\n\n## Agent Personality (SOUL)\n${soul}`);
+          logger.info('SystemTransform', `Injected SOUL context (${soul.length} chars)`);
         }
       } catch (err) {
         logger.error('code-ing', 'Failed to inject SOUL context:', err);
       }
+    } else {
+      logger.info('SystemTransform', 'No context injection (session type=other)');
     }
   };
 
