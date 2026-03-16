@@ -143,10 +143,7 @@ async function handleCutInCommand(
       clearSessionTracking(chatId);
     }
 
-    const sendClient = createFeishuClient(directory);
-    if (sendClient) {
-      await sendMarkdownMessage(sendClient, chatId, '⚡ 已取消当前任务，准备处理下一条消息...');
-    }
+    await sendMarkdownMessage(directory, chatId, '⚡ 已取消当前任务，准备处理下一条消息...');
   } catch (err) {
     logger.error('MessageHandler', 'Error handling cut-in command:', err);
   } finally {
@@ -180,11 +177,8 @@ async function handleQueueMessage(
     logger.error('MessageHandler', 'Failed to write message record:', e);
   }
 
-  const sendClient = createFeishuClient(directory);
-  if (sendClient) {
-    const queueMsg = `🤖消息排队中(${queueLength})...回复'/插队'插队`;
-    await sendMarkdownMessage(sendClient, chatId, queueMsg);
-  }
+  const queueMsg = `🤖消息排队中(${queueLength})...回复'/插队'插队`;
+  await sendMarkdownMessage(directory, chatId, queueMsg);
 
   logger.info('MessageHandler', 'Message queued for chat:', chatId, 'queue length:', queueLength);
 }

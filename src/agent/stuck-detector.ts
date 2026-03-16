@@ -19,7 +19,6 @@ import {
   STUCK_CHECK_INTERVAL_MS,
   type QueuedMessage,
 } from '../state.js';
-import { sendMarkdownMessage, createFeishuClient } from '../feishu.js';
 import { logger } from '../logger.js';
 
 interface StuckDetectorDeps {

@@ -109,15 +109,12 @@ export interface RichTextContent {
  * @deprecated Use sendCardMessage for full markdown support
  */
 export async function sendMessage(
-  client: { appId: string; appSecret: string },
+  projectDir: string,
   chatId: string,
   content: string,
   richContent?: RichTextContent
 ): Promise<boolean> {
-  const c = await getOrCreateLarkClient(client);
-  if (!c) return false;
-  
-  try {
+  const result = await withLarkClient(projectDir, async (c) => {
     let msgType = "text";
     let msgContent: string;
     
@@ -133,32 +130,26 @@ export async function sendMessage(
       data: { receive_id: chatId, msg_type: msgType, content: msgContent },
     });
     return result.code === 0;
-  } catch (e) {
-    logger.error('Feishu', "Error sending message:", e);
-    return false;
-  }
+  }, "Error sending message:");
+  return result ?? false;
 }
 
 /**
  * Send an Interactive Card message to Feishu.
  * Supports full markdown including tables, code blocks, @mentions, etc.
  * 
- * @param client - Feishu client credentials
+ * @param projectDir - Project directory path
  * @param chatId - Target chat ID
  * @param card - Feishu Interactive Card (Schema 2.0)
  * @returns true if message sent successfully
  */
 export async function sendCardMessage(
-  client: { appId: string; appSecret: string },
+  projectDir: string,
   chatId: string,
   card: FeishuCard
 ): Promise<boolean> {
-  const c = await getOrCreateLarkClient(client);
-  if (!c) return false;
-  
-  try {
+  const result = await withLarkClient(projectDir, async (c) => {
     const msgContent = JSON.stringify(card);
-    
     const result = await c.im.message.create({
       params: { receive_id_type: "chat_id" },
       data: { 
@@ -168,23 +159,21 @@ export async function sendCardMessage(
       },
     });
     return result.code === 0;
-  } catch (e) {
-    logger.error('Feishu', "Error sending card message:", e);
-    return false;
-  }
+  }, "Error sending card message:");
+  return result ?? false;
 }
 
 /**
  * Send a markdown message as an Interactive Card.
  * This is the recommended way to send messages with formatting.
  * 
- * @param client - Feishu client credentials
+ * @param projectDir - Project directory path
  * @param chatId - Target chat ID  
  * @param markdown - Markdown content (supports tables, code blocks, @mentions)
  * @returns true if message sent successfully
  */
 export async function sendMarkdownMessage(
-  client: { appId: string; appSecret: string },
+  projectDir: string,
   chatId: string,
   markdown: string
 ): Promise<boolean> {
@@ -196,7 +185,7 @@ export async function sendMarkdownMessage(
     }
   };
   
-  return sendCardMessage(client, chatId, card);
+  return sendCardMessage(projectDir, chatId, card);
 }
 
 export async function checkConnection(projectDir: string): Promise<boolean> {
@@ -251,13 +240,10 @@ export async function removeReaction(
 
 export async function uploadFile(
   projectDir: string,
-  filePath: string
+  fileName: string,
+  fileBuffer: Buffer
 ): Promise<FileUploadResult | null> {
-  const fileName = path.basename(filePath);
-  
   const result = await withLarkClient(projectDir, async (c) => {
-    const fileBuffer = await fs.readFile(filePath);
-    
     const res = await c.im.file.create({
       data: {
         file_type: 'stream',
@@ -316,7 +302,9 @@ export async function sendFileToChat(
   chatId: string,
   filePath: string
 ): Promise<FileSendResult> {
-  const uploadResult = await uploadFile(projectDir, filePath);
+  const fileName = path.basename(filePath);
+  const fileBuffer = await fs.readFile(filePath);
+  const uploadResult = await uploadFile(projectDir, fileName, fileBuffer);
   
   if (!uploadResult) {
     return { success: false, error: 'Failed to upload file' };
@@ -355,11 +343,11 @@ export async function createWSClient(
       loggerLevel: lark.LoggerLevel.warn,
     });
 
-    ws.start({ eventDispatcher });
+    await ws.start({ eventDispatcher });
 
-    setTimeout(() => {
-      if (wsClient.onConnect) wsClient.onConnect();
-    }, 1000);
+    if (wsClient.onConnect) {
+      wsClient.onConnect();
+    }
 
     wsClient.wsClient = ws;
     return wsClient;

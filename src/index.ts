@@ -95,7 +95,7 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
         const contacts = loadContacts(directory);
         if (contacts.length > 0) {
           const recentContact = contacts[0];
-          await sendMessage(feishuClient, recentContact.chatId, '🤖 Assistant 启动成功！');
+          await sendMessage(directory, recentContact.chatId, '🤖 Assistant 启动成功！');
         }
       },
       onDisconnect: async () => {

@@ -62,18 +62,12 @@ export async function handleSessionIdle(
       return;
     }
 
-    const feishuClient = await getFeishuClientFromConfig(directory);
-    if (!feishuClient) {
-      logger.error('SessionEvent', 'Could not get Feishu client');
-      return;
-    }
-
     const pretty = prettifyMessage(textContent);
-    let success = await sendMarkdownMessage(feishuClient, chatId, pretty.text);
+    let success = await sendMarkdownMessage(directory, chatId, pretty.text);
     
     if (!success) {
       logger.warn('SessionEvent', 'Failed to send markdown card, falling back to plain text:', chatId);
-      success = await sendMessage(feishuClient, chatId, pretty.text);
+      success = await sendMessage(directory, chatId, pretty.text);
     }
 
     if (success) {
