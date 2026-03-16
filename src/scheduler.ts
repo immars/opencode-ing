@@ -230,9 +230,6 @@ async function executeCronTask(
   }
 }
 
-/**
- * Execute CRON_SYS.md system task in a separate cron sys session
- */
 async function executeCronSysTask(
   projectDir: string,
   client: any,
@@ -250,15 +247,38 @@ async function executeCronSysTask(
       return;
     }
 
-    const compressionPrompt = buildCompressionPrompt(projectDir, taskType, 'cron_sys');
-    const sessionManager = new CronSysSessionManager(client);
-    const sessionId = await sessionManager.createSession();
-
-    if (!sessionId) {
-      logger.error('Scheduler', 'Failed to create cron sys session');
+    const sessions = listAllSessions(projectDir);
+    if (sessions.length === 0) {
+      logger.info('Scheduler', 'No sessions found for compression');
       return;
     }
 
+    const sessionManager = new CronSysSessionManager(client);
+
+    for (const chatId of sessions) {
+      await compressSession(projectDir, client, sessionManager, taskType, chatId);
+    }
+  } catch (err) {
+    logger.error('Scheduler', 'Failed to execute CRON_SYS task:', err);
+  }
+}
+
+async function compressSession(
+  projectDir: string,
+  client: any,
+  sessionManager: CronSysSessionManager,
+  taskType: 'L1' | 'L2',
+  chatId: string
+): Promise<void> {
+  const compressionPrompt = buildCompressionPrompt(projectDir, taskType, chatId);
+  const sessionId = await sessionManager.createSession();
+
+  if (!sessionId) {
+    logger.error('Scheduler', 'Failed to create cron sys session for:', chatId);
+    return;
+  }
+
+  try {
     const result = await client.session.prompt({
       path: { id: sessionId },
       body: {
@@ -274,15 +294,20 @@ async function executeCronSysTask(
 
     const summary = extractSummary(responseText);
     if (!summary) {
-      logger.error('Scheduler', 'No <summary> tag found in agent response');
+      logger.error('Scheduler', 'No <summary> tag found for session:', chatId);
       return;
     }
 
-    const targetPath = taskType === 'L1' ? getL1Path(projectDir) : getL2Path(projectDir);
+    const targetPath = taskType === 'L1' ? getL1Path(projectDir, chatId) : getL2Path(projectDir, chatId);
+    const targetDir = dirname(targetPath);
+    if (!existsSync(targetDir)) {
+      mkdirSync(targetDir, { recursive: true });
+    }
+    
     writeFileSync(targetPath, summary, 'utf-8');
-    logger.info('Scheduler', 'CRON_SYS task completed:', task.name, '→', targetPath);
+    logger.info('Scheduler', `Session ${chatId} compressed →`, targetPath);
   } catch (err) {
-    logger.error('Scheduler', 'Failed to execute CRON_SYS task:', err);
+    logger.error('Scheduler', 'Failed to compress session:', chatId, err);
   }
 }
 

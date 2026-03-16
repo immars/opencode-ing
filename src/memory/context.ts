@@ -20,7 +20,11 @@ import {
   getTodayString,
   ensureMemoryDir, 
   getMemoryDir, 
-  getMemoryFilePath 
+  getMemoryFilePath,
+  getSessionL1Dir,
+  getSessionL2Dir,
+  getSessionL1FilePath,
+  getSessionL2FilePath
 } from './utils.js';
 
 // ============================================================================
@@ -51,7 +55,7 @@ export function getL0Content(projectDir: string, chatId: string): string {
   return contents.join('\n');
 }
 
-export function getL1Content(projectDir: string, chatId?: string): string {
+export function getL1Content(projectDir: string, chatId: string): string {
   const now = new Date();
   const dayOfWeek = now.getDay();
   const weekStart = new Date(now);
@@ -59,7 +63,7 @@ export function getL1Content(projectDir: string, chatId?: string): string {
   weekStart.setHours(0, 0, 0, 0);
 
   const contents: string[] = [];
-  const l1Dir = getMemoryDir(projectDir, L1_DIR);
+  const l1Dir = getSessionL1Dir(projectDir, chatId);
 
   for (let i = 0; i <= dayOfWeek; i++) {
     const date = new Date(weekStart);
@@ -78,13 +82,13 @@ export function getL1Content(projectDir: string, chatId?: string): string {
   return contents.join('\n\n');
 }
 
-export function getL1Path(projectDir: string): string {
-  return getMemoryFilePath(projectDir, L1_DIR, `${getTodayString()}.md`);
+export function getL1Path(projectDir: string, chatId: string): string {
+  return getSessionL1FilePath(projectDir, chatId, getTodayString());
 }
 
-export function getL2Path(projectDir: string): string {
+export function getL2Path(projectDir: string, chatId: string): string {
   const weekStartStr = getWeekStart(new Date());
-  return getMemoryFilePath(projectDir, L2_DIR, `${weekStartStr}.md`);
+  return getSessionL2FilePath(projectDir, chatId, weekStartStr);
 }
 
 export function buildVariableContext(projectDir: string, chatId: string): VariableContext {
@@ -93,8 +97,8 @@ export function buildVariableContext(projectDir: string, chatId: string): Variab
   return {
     L0,
     L1,
-    L1_path: getL1Path(projectDir),
-    L2_path: getL2Path(projectDir),
+    L1_path: getL1Path(projectDir, chatId),
+    L2_path: getL2Path(projectDir, chatId),
   };
 }
 
