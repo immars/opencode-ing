@@ -20,11 +20,13 @@ import { createTools } from './tools.js';
 import { startSchedulerWithAgent } from './scheduler.js';
 import { loadContacts } from './contacts.js';
 import { setLoggerClient, logger } from './logger.js';
+import { startStuckDetector } from './agent/stuck-detector.js';
 import {
   getFeishuWSClient,
   setFeishuWSClient,
   getHeartbeatTimer,
   setHeartbeatTimer,
+  setStuckDetectorTimer,
 } from './state.js';
 
 const HEARTBEAT_INTERVAL = 2 * 60 * 60 * 1000; // 2小时检测一次（飞书SDK自带重连机制）
@@ -52,6 +54,9 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
   };
 
   startSchedulerWithAgent(directory, client);
+
+  const stuckDetectorTimer = startStuckDetector({ client, directory });
+  setStuckDetectorTimer(stuckDetectorTimer);
 
   const connectFeishu = async (): Promise<string> => {
     logger.info('code-ing', 'Connecting to Feishu...');

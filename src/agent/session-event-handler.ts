@@ -1,27 +1,34 @@
-/**
- * Session Event Handler
- *
- * Listens for opencode session.idle events and forwards agent responses to Feishu
- */
-
 import type { Event, Part, Message } from '@opencode-ai/sdk';
 import { parseChatIdFromTitle } from '../memory/session.js';
 import { loadFeishuConfig } from '../config.js';
 import { SESSION_PREFIXES } from '../memory/constants.js';
 import { logger } from '../logger.js';
-import { markMessageProcessed } from '../state.js';
+import {
+  markMessageProcessed,
+  getChatIdBySessionId,
+  updateLastUpdateTime,
+  clearSessionTracking,
+  getQueueLength,
+  removeFromQueue,
+  setSessionTracking,
+  getSessionIdByChatId,
+} from '../state.js';
 
 interface SessionEventDeps {
   directory: string;
   client: any;
 }
 
+const AGENT_NAME = 'assistant';
+
 export async function handleSessionIdle(
   deps: SessionEventDeps,
   sessionId: string
 ): Promise<void> {
+  const { client, directory } = deps;
+  
   try {
-    const session = await getSessionInfo(deps.client, sessionId);
+    const session = await getSessionInfo(client, sessionId);
     
     if (!session?.title?.startsWith(SESSION_PREFIXES.CHAT)) {
       return;
@@ -32,8 +39,11 @@ export async function handleSessionIdle(
       return;
     }
 
-    const lastAssistantMessage = await getLastAssistantMessage(deps.client, sessionId);
+    clearSessionTracking(chatId);
+
+    const lastAssistantMessage = await getLastAssistantMessage(client, sessionId);
     if (!lastAssistantMessage) {
+      await processQueueIfExists(deps, chatId, sessionId);
       return;
     }
 
@@ -45,10 +55,11 @@ export async function handleSessionIdle(
 
     const textContent = extractTextFromParts(lastAssistantMessage.parts);
     if (!textContent.trim()) {
+      await processQueueIfExists(deps, chatId, sessionId);
       return;
     }
 
-    const feishuClient = await getFeishuClientFromConfig(deps.directory);
+    const feishuClient = await getFeishuClientFromConfig(directory);
     if (!feishuClient) {
       logger.error('SessionEvent', 'Could not get Feishu client');
       return;
@@ -60,8 +71,56 @@ export async function handleSessionIdle(
     } else {
       logger.error('SessionEvent', 'Failed to send to Feishu chat:', chatId);
     }
+
+    await processQueueIfExists(deps, chatId, sessionId);
   } catch (err) {
     logger.error('SessionEvent', 'Error handling session.idle:', err);
+  }
+}
+
+export async function handleSessionUpdated(
+  deps: SessionEventDeps,
+  sessionId: string
+): Promise<void> {
+  const chatId = getChatIdBySessionId(sessionId);
+  if (chatId) {
+    updateLastUpdateTime(chatId);
+    logger.debug('SessionEvent', 'Updated lastUpdateTime for chat:', chatId);
+  }
+}
+
+async function processQueueIfExists(
+  deps: SessionEventDeps,
+  chatId: string,
+  sessionId: string
+): Promise<void> {
+  const { client } = deps;
+  const queueLength = getQueueLength(chatId);
+  
+  if (queueLength === 0) {
+    return;
+  }
+
+  const nextMsg = removeFromQueue(chatId);
+  if (!nextMsg) return;
+
+  logger.info('SessionEvent', 'Processing queued message for chat:', chatId, 'remaining:', queueLength - 1);
+
+  setSessionTracking(chatId, {
+    lastUpdateTime: Date.now(),
+    sessionId,
+  });
+
+  try {
+    await client.session.promptAsync({
+      path: { id: sessionId },
+      body: {
+        agent: AGENT_NAME,
+        parts: [{ type: 'text', text: nextMsg.textContent }],
+      },
+    });
+  } catch (err) {
+    logger.error('SessionEvent', 'Failed to send queued message:', err);
   }
 }
 
@@ -71,6 +130,9 @@ export function createSessionEventHandler(deps: SessionEventDeps) {
 
     if (event.type === 'session.idle') {
       await handleSessionIdle(deps, event.properties.sessionID);
+    } else if (event.type === 'session.updated') {
+      const sessionId = event.properties.info.id;
+      await handleSessionUpdated(deps, sessionId);
     }
   };
 }
