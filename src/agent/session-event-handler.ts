@@ -3,6 +3,8 @@ import { parseChatIdFromTitle } from '../memory/session.js';
 import { loadFeishuConfig } from '../config.js';
 import { SESSION_PREFIXES } from '../memory/constants.js';
 import { logger } from '../logger.js';
+import { sendMarkdownMessage } from '../feishu.js';
+import { prettifyMessage } from '../prettifier.js';
 import {
   markMessageProcessed,
   getChatIdBySessionId,
@@ -65,7 +67,8 @@ export async function handleSessionIdle(
       return;
     }
 
-    const success = await sendToFeishu(feishuClient, chatId, textContent);
+    const pretty = prettifyMessage(textContent);
+    const success = await sendMarkdownMessage(feishuClient, chatId, pretty.text);
     if (success) {
       logger.info('SessionEvent', 'Sent agent response to Feishu chat:', chatId);
     } else {
@@ -191,28 +194,4 @@ async function getFeishuClientFromConfig(directory: string): Promise<{ appId: st
     return null;
   }
   return { appId: config.app_id, appSecret: config.app_secret };
-}
-
-async function sendToFeishu(
-  client: { appId: string; appSecret: string },
-  chatId: string,
-  content: string
-): Promise<boolean> {
-  const lark = await import('@larksuiteoapi/node-sdk');
-  const c = new lark.Client({ appId: client.appId, appSecret: client.appSecret });
-  
-  try {
-    const result = await c.im.message.create({
-      params: { receive_id_type: 'chat_id' },
-      data: {
-        receive_id: chatId,
-        msg_type: 'text',
-        content: JSON.stringify({ text: content }),
-      },
-    });
-    return result.code === 0;
-  } catch (e) {
-    logger.error('SessionEvent', 'Failed to send message to Feishu:', e);
-    return false;
-  }
 }
