@@ -13,7 +13,7 @@ import { loadFeishuConfig, getFeishuContext, formatContextAsPrompt } from './mem
 import { readSoul } from './memory/levels.js';
 import { SESSION_PREFIXES } from './memory/constants.js';
 import { getChatIdFromSession } from './memory/session.js';
-import { createFeishuClient, createWSClient, closeWSClient, checkConnection, sendMessage } from './feishu.js';
+import { createFeishuClient, createWSClient, closeWSClient, checkConnection, sendMessage, getFeishuWSClient, setFeishuWSClient } from './feishu.js';
 import { handleFeishuMessage } from './agent/message-handler.js';
 import { createSessionEventHandler } from './agent/session-event-handler.js';
 import { createTools } from './tools.js';
@@ -22,12 +22,12 @@ import { loadContacts } from './contacts.js';
 import { setLoggerClient, logger } from './logger.js';
 import { startStuckDetector } from './agent/stuck-detector.js';
 import {
-  getFeishuWSClient,
-  setFeishuWSClient,
+  setStuckDetectorTimer,
+} from './agent/state.js';
+import {
   getHeartbeatTimer,
   setHeartbeatTimer,
-  setStuckDetectorTimer,
-} from './state.js';
+} from './feishu.js';
 
 const HEARTBEAT_INTERVAL = 2 * 60 * 60 * 1000; // 2小时检测一次（飞书SDK自带重连机制）
 

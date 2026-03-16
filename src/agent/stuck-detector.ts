@@ -18,7 +18,7 @@ import {
   STUCK_THRESHOLD_MS,
   STUCK_CHECK_INTERVAL_MS,
   type QueuedMessage,
-} from '../state.js';
+} from './state.js';
 import { logger } from '../logger.js';
 
 interface StuckDetectorDeps {

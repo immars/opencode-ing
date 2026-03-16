@@ -15,7 +15,7 @@ import {
   removeFromQueue,
   setSessionTracking,
   getSessionIdByChatId,
-} from '../state.js';
+} from './state.js';
 
 interface SessionEventDeps {
   directory: string;

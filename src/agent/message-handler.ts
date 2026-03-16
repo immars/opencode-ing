@@ -12,7 +12,7 @@ import {
   getSessionTracking,
   clearSessionTracking,
   type QueuedMessage,
-} from '../state.js';
+} from './state.js';
 
 const AGENT_NAME = 'assistant';
 const CUT_IN_COMMAND = '/插队';

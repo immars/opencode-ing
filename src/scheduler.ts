@@ -22,16 +22,42 @@ import { listAllSessions, getSessionL9FilePath, getSessionL1FilePath, getSession
 import { logger } from './logger.js';
 import { writeFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname } from 'path';
-import {
-  getSchedulerInterval,
-  setSchedulerInterval,
-  getSchedulerRunningState,
-  setSchedulerRunning,
-  getSchedulerClient,
-  setSchedulerClient,
-  getSchedulerProjectDir,
-  setSchedulerProjectDir,
-} from './state.js';
+
+/** Scheduler interval timer */
+let schedulerInterval: NodeJS.Timeout | null = null;
+
+/** Scheduler running flag */
+let schedulerRunning = false;
+
+/** Scheduler client reference */
+let schedulerClient: any = null;
+
+/** Scheduler project directory */
+let schedulerProjectDir: string = '';
+
+export function isSchedulerRunning(): boolean {
+  return schedulerRunning;
+}
+
+export function setSchedulerRunning(running: boolean): void {
+  schedulerRunning = running;
+}
+
+export function getSchedulerClient(): any {
+  return schedulerClient;
+}
+
+export function setSchedulerClient(client: any): void {
+  schedulerClient = client;
+}
+
+export function getSchedulerProjectDir(): string {
+  return schedulerProjectDir;
+}
+
+export function setSchedulerProjectDir(dir: string): void {
+  schedulerProjectDir = dir;
+}
 
 /**
  * Start the scheduler with callback for legacy support
@@ -51,7 +77,7 @@ export function startScheduler(
   const interval = setInterval(() => {
     checkAndRun(projectDir, callback);
   }, 60 * 1000);
-  setSchedulerInterval(interval);
+  schedulerInterval = interval;
 }
 
 /**
@@ -74,17 +100,17 @@ export function startSchedulerWithAgent(
   const interval = setInterval(() => {
     executeScheduledTasks(projectDir, client);
   }, 60 * 1000);
-  setSchedulerInterval(interval);
+  schedulerInterval = interval;
 }
 
 /**
  * Stop the scheduler
  */
 export function stopScheduler(): void {
-  const interval = getSchedulerInterval();
+  const interval = schedulerInterval;
   if (interval) {
     clearInterval(interval);
-    setSchedulerInterval(null);
+    schedulerInterval = null;
   }
   setSchedulerRunning(false);
   setSchedulerClient(null);
@@ -493,13 +519,6 @@ export function getNextScheduledTime(): Date {
   }
 
   return next;
-}
-
-/**
- * Check if scheduler is running
- */
-export function isSchedulerRunning(): boolean {
-  return getSchedulerRunningState();
 }
 
 export async function testTriggerAllCron(
