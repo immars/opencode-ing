@@ -4,7 +4,7 @@ import { loadFeishuConfig } from '../config.js';
 import { SESSION_PREFIXES } from '../memory/constants.js';
 import { writeMessageRecord } from '../memory/levels.js';
 import { logger } from '../logger.js';
-import { sendMarkdownMessage } from '../feishu.js';
+import { sendMarkdownMessage, sendMessage } from '../feishu.js';
 import { prettifyMessage } from '../prettifier.js';
 import {
   markMessageProcessed,
@@ -69,11 +69,17 @@ export async function handleSessionIdle(
     }
 
     const pretty = prettifyMessage(textContent);
-    const success = await sendMarkdownMessage(feishuClient, chatId, pretty.text);
+    let success = await sendMarkdownMessage(feishuClient, chatId, pretty.text);
+    
+    if (!success) {
+      logger.warn('SessionEvent', 'Failed to send markdown card, falling back to plain text:', chatId);
+      success = await sendMessage(feishuClient, chatId, pretty.text);
+    }
+
     if (success) {
       logger.info('SessionEvent', 'Sent agent response to Feishu chat:', chatId);
     } else {
-      logger.error('SessionEvent', 'Failed to send to Feishu chat:', chatId);
+      logger.error('SessionEvent', 'Failed to send to Feishu chat even after fallback:', chatId);
     }
 
     const today = new Date();

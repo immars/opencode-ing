@@ -122,6 +122,5 @@ export function startStuckDetector(deps: StuckDetectorDeps): NodeJS.Timeout {
     });
   }, STUCK_CHECK_INTERVAL_MS);
 
-  logger.info('StuckDetector', 'Started with interval:', STUCK_CHECK_INTERVAL_MS, 'ms');
   return timer;
 }
