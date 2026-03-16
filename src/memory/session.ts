@@ -4,11 +4,9 @@
  * Manages OpenCode session lifecycle
  */
 
-import { DEFAULTS } from './constants.js';
-import { getFeishuContext, formatContextAsPrompt } from './context.js';
+import { DEFAULTS, SESSION_PREFIXES } from './constants.js';
 import { logger } from '../logger.js';
 
-const MANAGED_SESSION_NAME = 'Assistant Managed Session';
 const AGENT_NAME = 'assistant';
 const SESSION_MAX_AGE_HOURS = DEFAULTS.SESSION_MAX_AGE_HOURS;
 const SESSION_MAX_KEEP = DEFAULTS.SESSION_MAX_KEEP;
@@ -92,7 +90,7 @@ export async function getOrCreateManagedSession(
     const allSessions = sessionsResp?.data || [];
 
     const managedSessions = allSessions
-      .filter((s: SessionInfo) => s.title?.startsWith(MANAGED_SESSION_NAME))
+      .filter((s: SessionInfo) => s.title?.startsWith(SESSION_PREFIXES.MANAGED))
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     if (managedSessions.length > 0) {
@@ -106,10 +104,10 @@ export async function getOrCreateManagedSession(
       logger.info('Session', 'Session needs rotation:', session.title);
     }
 
-    await housekeepSessions(client, MANAGED_SESSION_NAME, SESSION_MAX_KEEP);
+    await housekeepSessions(client, SESSION_PREFIXES.MANAGED, SESSION_MAX_KEEP);
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-    const sessionTitle = `${MANAGED_SESSION_NAME} ${timestamp}`;
+    const sessionTitle = `${SESSION_PREFIXES.MANAGED} ${timestamp}`;
 
     const newSession = await client.session.create({
       body: { title: sessionTitle },
@@ -118,22 +116,6 @@ export async function getOrCreateManagedSession(
     const newSessionId = newSession.data?.id;
     if (newSessionId) {
       logger.info('Session', 'Created:', sessionTitle);
-      
-      if (directory) {
-        const memoryContext = getFeishuContext(directory);
-        const contextPrompt = formatContextAsPrompt(memoryContext);
-        
-        if (contextPrompt) {
-          await client.session.prompt({
-            path: { id: newSessionId },
-            body: {
-              agent: AGENT_NAME,
-              parts: [{ type: 'text', text: `[System Context]\n\n${contextPrompt}` }],
-            },
-          });
-        }
-      }
-      
       return newSessionId;
     }
 
@@ -171,7 +153,7 @@ export async function rotateOldSessions(
 
     // Find managed sessions
     const managedSessions = allSessions
-      .filter((s: any) => s.title?.startsWith(MANAGED_SESSION_NAME))
+      .filter((s: any) => s.title?.startsWith(SESSION_PREFIXES.MANAGED))
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     for (let i = 0; i < managedSessions.length; i++) {
@@ -180,7 +162,7 @@ export async function rotateOldSessions(
 
       // If oldest and should rotate
       if (i === 0 && shouldRotateSession(createdAt, maxAgeDays)) {
-        const newTitle = `${MANAGED_SESSION_NAME}.1`;
+        const newTitle = `${SESSION_PREFIXES.MANAGED}.1`;
         await client.session.update({
           path: { id: session.id },
           body: { title: newTitle },
@@ -212,7 +194,7 @@ export async function deleteOldSessions(
 
     // Find rolled sessions
     const rolledSessions = allSessions
-      .filter((s: any) => s.title?.startsWith(`${MANAGED_SESSION_NAME}.`))
+      .filter((s: any) => s.title?.startsWith(`${SESSION_PREFIXES.MANAGED}.`))
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
     // Delete beyond keepCount
@@ -232,7 +214,7 @@ export async function getOrCreateChatSession(
   directory: string,
   chatId: string
 ): Promise<string | null> {
-  const sessionPrefix = `Chat ${chatId}`;
+  const sessionPrefix = `${SESSION_PREFIXES.CHAT}${chatId}`;
   const maxKeep = 5;
 
   try {
@@ -266,22 +248,6 @@ export async function getOrCreateChatSession(
     const newSessionId = newSession.data?.id;
     if (newSessionId) {
       logger.info('ChatSession', 'Created:', sessionTitle);
-
-      if (directory) {
-        const memoryContext = getFeishuContext(directory);
-        const contextPrompt = formatContextAsPrompt(memoryContext);
-
-        if (contextPrompt) {
-          await client.session.prompt({
-            path: { id: newSessionId },
-            body: {
-              agent: AGENT_NAME,
-              parts: [{ type: 'text', text: `[System Context]\n\n${contextPrompt}` }],
-            },
-          });
-        }
-      }
-
       return newSessionId;
     }
 
@@ -294,7 +260,10 @@ export async function getOrCreateChatSession(
 }
 
 export function parseChatIdFromTitle(title: string): string | null {
-  const match = title.match(/^Chat\s+([^\s]+)\s/);
+  const prefix = SESSION_PREFIXES.CHAT;
+  if (!title.startsWith(prefix)) return null;
+  const rest = title.slice(prefix.length);
+  const match = rest.match(/^([^\s]+)\s/);
   return match ? match[1] : null;
 }
 
@@ -325,7 +294,7 @@ export async function getChatIdFromSession(
  */
 export class CronSysSessionManager {
   private client: any;
-  private baseName = 'cron sys session';
+  private baseName = SESSION_PREFIXES.CRON_SYS;
   private maxKeep = 5;
 
   constructor(client: any) {

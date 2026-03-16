@@ -7,9 +7,8 @@
 import type { Event, Part, Message } from '@opencode-ai/sdk';
 import { parseChatIdFromTitle } from '../memory/session.js';
 import { loadFeishuConfig } from '../config.js';
+import { SESSION_PREFIXES } from '../memory/constants.js';
 import { logger } from '../logger.js';
-
-const CHAT_SESSION_PREFIX = 'Chat ';
 
 interface SessionEventDeps {
   directory: string;
@@ -38,7 +37,7 @@ export async function handleSessionIdle(
   try {
     const session = await getSessionInfo(deps.client, sessionId);
     
-    if (!session?.title?.startsWith(CHAT_SESSION_PREFIX)) {
+    if (!session?.title?.startsWith(SESSION_PREFIXES.CHAT)) {
       return;
     }
 

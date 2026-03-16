@@ -1,4 +1,4 @@
-import { createFeishuClient, sendMessage, addReaction, removeReaction } from '../feishu.js';
+import { createFeishuClient, sendMarkdownMessage, addReaction, removeReaction } from '../feishu.js';
 import { getOrCreateChatSession } from '../memory/session.js';
 import { saveContact } from '../contacts.js';
 import { writeMessageRecord } from '../memory/levels.js';
@@ -91,7 +91,7 @@ export async function handleFeishuMessage(
         const sendClient = createFeishuClient(directory);
         if (sendClient) {
           const pretty = prettifyMessage(responseText);
-          const sent = await sendMessage(sendClient, chatId, pretty.text, pretty.useRichText ? pretty.richContent : undefined);
+          const sent = await sendMarkdownMessage(sendClient, chatId, pretty.text);
           if (!sent) {
             logger.error('MessageHandler', 'Failed to send message to Feishu');
           }
@@ -105,7 +105,7 @@ export async function handleFeishuMessage(
       } else {
         const sendClient = createFeishuClient(directory);
         if (sendClient) {
-          const sent = await sendMessage(sendClient, chatId, 'Assistant finished processing.');
+          const sent = await sendMarkdownMessage(sendClient, chatId, 'Assistant finished processing.');
           if (!sent) {
             logger.error('MessageHandler', 'Failed to send message to Feishu');
           }

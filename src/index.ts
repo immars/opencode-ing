@@ -9,7 +9,9 @@
  */
 
 import type { Plugin, Hooks } from '@opencode-ai/plugin';
-import { buildMemoryContext, loadFeishuConfig } from './memory.js';
+import { loadFeishuConfig, getFeishuContext, formatContextAsPrompt } from './memory.js';
+import { readSoul } from './memory/levels.js';
+import { SESSION_PREFIXES } from './memory/constants.js';
 import { createFeishuClient, createWSClient, closeWSClient, checkConnection, sendMessage } from './feishu.js';
 import { handleFeishuMessage } from './agent/message-handler.js';
 import { createSessionEventHandler } from './agent/session-event-handler.js';
@@ -24,19 +26,6 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
   const { client, directory } = ctx;
 
   setLoggerClient(client);
-
-  const memoryContext = buildMemoryContext(directory, 'feishu_message');
-
-  const systemPromptWithMemory = `
-你是 code-ing agent，有自己的记忆系统。
-
-${memoryContext.directoryInfo}
-
-## 记忆规则
-1. 重要信息写入 .code-ing/workspace/long-term/
-2. 每轮对话结束总结写入短期记忆
-3. 定期将短期记忆合并到长期记忆
-`.trim();
 
   let feishuWSClient: any = null;
   let heartbeatTimer: NodeJS.Timeout | null = null;
@@ -130,9 +119,67 @@ ${memoryContext.directoryInfo}
 
   const handleSessionEvent = createSessionEventHandler({ directory, client });
 
+  type SessionType = 'chat' | 'cron_sys' | 'other';
+  const sessionTypeCache = new Map<string, SessionType>();
+
+  const getSessionType = async (sessionId: string): Promise<SessionType> => {
+    if (sessionTypeCache.has(sessionId)) {
+      return sessionTypeCache.get(sessionId)!;
+    }
+
+    try {
+      const resp = await client.session.get({ path: { id: sessionId } });
+      const title = resp?.data?.title || '';
+
+      let type: SessionType;
+      if (title.startsWith(SESSION_PREFIXES.CHAT)) {
+        type = 'chat';
+      } else if (title.startsWith(SESSION_PREFIXES.CRON_SYS)) {
+        type = 'cron_sys';
+      } else {
+        type = 'other';
+      }
+
+      sessionTypeCache.set(sessionId, type);
+      return type;
+    } catch {
+      return 'other';
+    }
+  };
+
+  const handleSystemTransform: Hooks['experimental.chat.system.transform'] = async (input, output) => {
+    const sessionId = input.sessionID;
+    if (!sessionId) return;
+
+    const sessionType = await getSessionType(sessionId);
+
+    if (sessionType === 'chat') {
+      try {
+        const memoryContext = getFeishuContext(directory);
+        const contextPrompt = formatContextAsPrompt(memoryContext);
+
+        if (contextPrompt) {
+          output.system.push(`[Memory Context]\n\n${contextPrompt}`);
+        }
+      } catch (err) {
+        logger.error('code-ing', 'Failed to inject memory context:', err);
+      }
+    } else if (sessionType === 'cron_sys') {
+      try {
+        const soul = readSoul(directory);
+        if (soul) {
+          output.system.push(`[Memory Context]\n\n## Agent Personality (SOUL)\n${soul}`);
+        }
+      } catch (err) {
+        logger.error('code-ing', 'Failed to inject SOUL context:', err);
+      }
+    }
+  };
+
   return {
     tool: tools,
     event: handleSessionEvent,
+    'experimental.chat.system.transform': handleSystemTransform,
   };
 };
 

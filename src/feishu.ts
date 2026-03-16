@@ -90,6 +90,8 @@ async function withLarkClient<T>(
   }
 }
 
+import type { FeishuCard } from "./prettifier.js";
+
 export interface RichTextContent {
   zh_cn: {
     title: string;
@@ -97,6 +99,10 @@ export interface RichTextContent {
   };
 }
 
+/**
+ * Send a text or rich text message to Feishu
+ * @deprecated Use sendCardMessage for full markdown support
+ */
 export async function sendMessage(
   client: { appId: string; appSecret: string },
   chatId: string,
@@ -126,6 +132,66 @@ export async function sendMessage(
     logger.error('Feishu', "Error sending message:", e);
     return false;
   }
+}
+
+/**
+ * Send an Interactive Card message to Feishu.
+ * Supports full markdown including tables, code blocks, @mentions, etc.
+ * 
+ * @param client - Feishu client credentials
+ * @param chatId - Target chat ID
+ * @param card - Feishu Interactive Card (Schema 2.0)
+ * @returns true if message sent successfully
+ */
+export async function sendCardMessage(
+  client: { appId: string; appSecret: string },
+  chatId: string,
+  card: FeishuCard
+): Promise<boolean> {
+  const c = await getOrCreateLarkClient(client);
+  if (!c) return false;
+  
+  try {
+    const msgContent = JSON.stringify(card);
+    
+    const result = await c.im.message.create({
+      params: { receive_id_type: "chat_id" },
+      data: { 
+        receive_id: chatId, 
+        msg_type: "interactive", 
+        content: msgContent 
+      },
+    });
+    return result.code === 0;
+  } catch (e) {
+    logger.error('Feishu', "Error sending card message:", e);
+    return false;
+  }
+}
+
+/**
+ * Send a markdown message as an Interactive Card.
+ * This is the recommended way to send messages with formatting.
+ * 
+ * @param client - Feishu client credentials
+ * @param chatId - Target chat ID  
+ * @param markdown - Markdown content (supports tables, code blocks, @mentions)
+ * @returns true if message sent successfully
+ */
+export async function sendMarkdownMessage(
+  client: { appId: string; appSecret: string },
+  chatId: string,
+  markdown: string
+): Promise<boolean> {
+  const card: FeishuCard = {
+    schema: "2.0",
+    config: { wide_screen_mode: true },
+    body: {
+      elements: [{ tag: "markdown", content: markdown }]
+    }
+  };
+  
+  return sendCardMessage(client, chatId, card);
 }
 
 export async function checkConnection(projectDir: string): Promise<boolean> {

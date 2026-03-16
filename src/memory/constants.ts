@@ -47,3 +47,13 @@ export const DEFAULTS = {
   SESSION_MAX_AGE_HOURS: 6,
   SESSION_MAX_KEEP: 5,
 } as const;
+
+/** Session title prefixes */
+export const SESSION_PREFIXES = {
+  /** Chat session prefix: "Chat {chatId} {timestamp}" */
+  CHAT: 'Chat ',
+  /** Managed session prefix: "Assistant Managed Session {timestamp}" */
+  MANAGED: 'Assistant Managed Session',
+  /** Cron sys session prefix: "cron sys session {timestamp}" */
+  CRON_SYS: 'cron sys session',
+} as const;
