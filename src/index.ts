@@ -152,7 +152,7 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
     if (!sessionId) return;
 
     const { type: sessionType, title } = await getSessionType(sessionId);
-    logger.info('SystemTransform', `sessionId=${sessionId?.slice(0, 8)}... title="${title}" type=${sessionType}`);
+    console.error(`[SystemTransform] sessionId=${sessionId?.slice(0, 8)}... title="${title}" type=${sessionType}`);
 
     if (sessionType === 'chat') {
       try {
@@ -161,23 +161,23 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
 
         if (contextPrompt) {
           output.system.push(`[Memory Context]\n\n${contextPrompt}`);
-          logger.info('SystemTransform', `Injected full context (${contextPrompt.length} chars)`);
+          console.error(`[SystemTransform] Injected full context (${contextPrompt.length} chars)`);
         }
       } catch (err) {
-        logger.error('code-ing', 'Failed to inject memory context:', err);
+        console.error('[SystemTransform] Failed to inject memory context:', err);
       }
     } else if (sessionType === 'cron_sys') {
       try {
         const soul = readSoul(directory);
         if (soul) {
           output.system.push(`[Memory Context]\n\n## Agent Personality (SOUL)\n${soul}`);
-          logger.info('SystemTransform', `Injected SOUL context (${soul.length} chars)`);
+          console.error(`[SystemTransform] Injected SOUL context (${soul.length} chars)`);
         }
       } catch (err) {
-        logger.error('code-ing', 'Failed to inject SOUL context:', err);
+        console.error('[SystemTransform] Failed to inject SOUL context:', err);
       }
     } else {
-      logger.info('SystemTransform', 'No context injection (session type=other)');
+      console.error('[SystemTransform] No context injection (session type=other)');
     }
   };
 
