@@ -19,11 +19,12 @@ import { logger } from './logger.js';
  */
 export function buildMemoryContext(
   projectDir: string,
-  trigger: string
+  trigger: string,
+  chatId: string = 'default'
 ): MemoryContext {
   // Map legacy trigger to new trigger type
   const triggerType: TriggerType = trigger === 'scheduled' ? 'scheduled' : 'feishu_message';
-  return getFeishuContext(projectDir);
+  return getFeishuContext(projectDir, chatId);
 }
 
 // Legacy function names for backward compatibility

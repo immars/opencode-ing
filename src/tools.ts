@@ -52,7 +52,8 @@ export function createTools(deps: ToolDeps): Record<string, ReturnType<typeof to
       description: '获取当前记忆状态',
       args: {},
       async execute(args, context) {
-        const memCtx = buildMemoryContext(directory, 'feishu_message');
+        const chatId = context.sessionID ? await getChatIdFromSession(client, context.sessionID) : null;
+        const memCtx = buildMemoryContext(directory, 'feishu_message', chatId || 'default');
         return (
           '记忆状态:\n- 长期记忆: ' +
           (memCtx.longTermMemory ? '有内容' : '暂无') +

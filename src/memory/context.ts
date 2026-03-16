@@ -34,9 +34,9 @@ export interface VariableContext {
   L2_path: string;
 }
 
-export function getL0Content(projectDir: string): string {
+export function getL0Content(projectDir: string, chatId: string): string {
   const today = getTodayString();
-  const messages = readRecentMessages(projectDir, today, 60);
+  const messages = readRecentMessages(projectDir, today, chatId, 60);
   
   if (messages.length === 0) {
     return '';
@@ -51,7 +51,7 @@ export function getL0Content(projectDir: string): string {
   return contents.join('\n');
 }
 
-export function getL1Content(projectDir: string): string {
+export function getL1Content(projectDir: string, chatId?: string): string {
   const now = new Date();
   const dayOfWeek = now.getDay();
   const weekStart = new Date(now);
@@ -87,9 +87,9 @@ export function getL2Path(projectDir: string): string {
   return getMemoryFilePath(projectDir, L2_DIR, `${weekStartStr}.md`);
 }
 
-export function buildVariableContext(projectDir: string): VariableContext {
-  const L0 = getL0Content(projectDir);
-  const L1 = getL1Content(projectDir);
+export function buildVariableContext(projectDir: string, chatId: string): VariableContext {
+  const L0 = getL0Content(projectDir, chatId);
+  const L1 = getL1Content(projectDir, chatId);
   return {
     L0,
     L1,
@@ -149,13 +149,13 @@ export function getCronContext(projectDir: string, taskContent: string): string 
   return cron || 'No cron tasks defined';
 }
 
-export function getCronSysContext(projectDir: string, taskContent: string): string {
+export function getCronSysContext(projectDir: string, taskContent: string, chatId?: string): string {
   if (!taskContent) {
     return 'No task content provided';
   }
   
   if (hasVariables(taskContent)) {
-    const variables = buildVariableContext(projectDir);
+    const variables = buildVariableContext(projectDir, chatId || 'default');
     return substituteVariables(taskContent, variables);
   }
   
@@ -174,13 +174,14 @@ function getDirectoryInfo(projectDir: string): string {
 
 export function buildMemoryContext(
   projectDir: string,
-  triggerType: TriggerType
+  triggerType: TriggerType,
+  chatId: string
 ): MemoryContext {
   const longTermMemory = readAllL9(projectDir);
   const todayStr = getTodayString();
-  const recentMessages = readRecentMessages(projectDir, todayStr, 60);
-  const dailySummaries = readDailySummaries(projectDir, 3);
-  const weeklySummaries = readWeeklySummaries(projectDir, 3);
+  const recentMessages = readRecentMessages(projectDir, todayStr, chatId, 60);
+    const dailySummaries = readDailySummaries(projectDir, 3, chatId);
+    const weeklySummaries = readWeeklySummaries(projectDir, 3, chatId);
 
   return {
     directoryInfo: getDirectoryInfo(projectDir),
@@ -198,12 +199,12 @@ export function buildMemoryContext(
   };
 }
 
-export function getFeishuContext(projectDir: string): MemoryContext {
-  return buildMemoryContext(projectDir, 'feishu_message');
+export function getFeishuContext(projectDir: string, chatId: string): MemoryContext {
+  return buildMemoryContext(projectDir, 'feishu_message', chatId);
 }
 
-export function getScheduledContext(projectDir: string): MemoryContext {
-  return buildMemoryContext(projectDir, 'scheduled');
+export function getScheduledContext(projectDir: string, chatId: string): MemoryContext {
+  return buildMemoryContext(projectDir, 'scheduled', chatId);
 }
 
 export function formatContextAsPrompt(context: MemoryContext): string {
@@ -263,8 +264,8 @@ const COMPRESSION_INSTRUCTIONS = `把下列<detail></detail>标签中的信息�
 /**
  * Build compression prompt for L1 (daily) summary
  */
-export function buildL1CompressionPrompt(projectDir: string): string {
-  const l0Content = getL0Content(projectDir);
+export function buildL1CompressionPrompt(projectDir: string, chatId: string): string {
+  const l0Content = getL0Content(projectDir, chatId);
   return `${COMPRESSION_INSTRUCTIONS}
 
 <detail>
@@ -275,8 +276,8 @@ ${l0Content}
 /**
  * Build compression prompt for L2 (weekly) summary
  */
-export function buildL2CompressionPrompt(projectDir: string): string {
-  const l1Content = getL1Content(projectDir);
+export function buildL2CompressionPrompt(projectDir: string, chatId: string): string {
+  const l1Content = getL1Content(projectDir, chatId);
   return `${COMPRESSION_INSTRUCTIONS}
 
 <detail>
@@ -287,11 +288,11 @@ ${l1Content}
 /**
  * Build compression prompt based on task type
  */
-export function buildCompressionPrompt(projectDir: string, taskType: 'L1' | 'L2'): string {
+export function buildCompressionPrompt(projectDir: string, taskType: 'L1' | 'L2', chatId: string): string {
   if (taskType === 'L1') {
-    return buildL1CompressionPrompt(projectDir);
+    return buildL1CompressionPrompt(projectDir, chatId);
   }
-  return buildL2CompressionPrompt(projectDir);
+  return buildL2CompressionPrompt(projectDir, chatId);
 }
 
 /**

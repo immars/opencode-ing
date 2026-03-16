@@ -22,6 +22,8 @@ export async function handleFeishuMessage(
   const chatType = msg.message?.chat_type;
   const messageId = msg.message?.message_id;
   const rawContent = msg.message?.content || '';
+  const senderId = msg.sender?.sender_id?.open_id;
+  const senderName = msg.sender?.sender?.tenant_key;
   let textContent = rawContent;
 
   try {
@@ -59,7 +61,10 @@ export async function handleFeishuMessage(
         role: 'user',
         content: textContent,
         source: 'feishu',
-      });
+        chat_id: chatId,
+        sender_id: senderId,
+        sender_name: senderName,
+      }, chatId);
     } catch (e) {
       logger.error('MessageHandler', 'Failed to write message record:', e);
     }
@@ -101,7 +106,8 @@ export async function handleFeishuMessage(
           role: 'assistant',
           content: responseText,
           source: 'feishu',
-        });
+          chat_id: chatId,
+        }, chatId);
       } else {
         const sendClient = createFeishuClient(directory);
         if (sendClient) {

@@ -8,15 +8,24 @@
  * - L9: Long-term memory files (SOUL.md, PEOPLE.md, TASK.md, CRON.md, CRON_SYS.md)
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { DEFAULTS, L0_DIR, L1_DIR, L2_DIR, L9_FILES } from './constants.js';
 import { 
   ensureMemoryDir, 
   getMemoryFilePath, 
   listMemoryFiles,
   readMemoryRootFile,
-  writeMemoryRootFile 
+  writeMemoryRootFile,
+  getSessionL0FilePath,
+  ensureSessionL0Dir,
+  getSessionL1FilePath,
+  ensureSessionL1Dir,
+  listSessionL1Files,
+  getSessionL2FilePath,
+  ensureSessionL2Dir,
+  listSessionL2Files
 } from './utils.js';
+import { getGlobalSoulPath, getSessionL9FilePath, getSessionDir, getGlobalDir, listAllSessions } from './paths.js';
 import type { MessageRecord, DailySummary, WeeklySummary } from './types.js';
 
 // ============================================================================
@@ -73,6 +82,32 @@ export function writeCronSys(projectDir: string, content: string): void {
   writeL9File(projectDir, L9_FILES.CRON_SYS, content);
 }
 
+// Per-session L9 file operations
+
+export function readSessionTasks(projectDir: string, chatId: string): string {
+  const filePath = getSessionL9FilePath(projectDir, chatId, L9_FILES.TASK);
+  if (!existsSync(filePath)) {
+    return '';
+  }
+  return readFileSync(filePath, 'utf-8');
+}
+
+export function readSessionCron(projectDir: string, chatId: string): string {
+  const filePath = getSessionL9FilePath(projectDir, chatId, L9_FILES.CRON);
+  if (!existsSync(filePath)) {
+    return '';
+  }
+  return readFileSync(filePath, 'utf-8');
+}
+
+export function readSessionCronSys(projectDir: string, chatId: string): string {
+  const filePath = getSessionL9FilePath(projectDir, chatId, L9_FILES.CRON_SYS);
+  if (!existsSync(filePath)) {
+    return '';
+  }
+  return readFileSync(filePath, 'utf-8');
+}
+
 export function readAllL9(projectDir: string): {
   soul: string;
   people: string;
@@ -96,11 +131,12 @@ export function readAllL9(projectDir: string): {
 export function writeMessageRecord(
   projectDir: string,
   date: string,
-  message: MessageRecord
+  message: MessageRecord,
+  chatId: string
 ): void {
-  ensureMemoryDir(projectDir, L0_DIR);
+  ensureSessionL0Dir(projectDir, chatId);
 
-  const filePath = getMemoryFilePath(projectDir, L0_DIR, `${date}.md`);
+  const filePath = getSessionL0FilePath(projectDir, chatId, date);
   const recordLine = `- [${message.timestamp}] ${message.role}: ${message.content}`;
 
   if (existsSync(filePath)) {
@@ -114,9 +150,10 @@ export function writeMessageRecord(
 export function readRecentMessages(
   projectDir: string,
   date: string,
+  chatId: string,
   count: number = DEFAULTS.L0_MAX_MESSAGES
 ): MessageRecord[] {
-  const filePath = getMemoryFilePath(projectDir, L0_DIR, `${date}.md`);
+  const filePath = getSessionL0FilePath(projectDir, chatId, date);
 
   if (!existsSync(filePath)) {
     return [];
@@ -144,17 +181,17 @@ export function readRecentMessages(
   return messages;
 }
 
-export function readAllMessages(projectDir: string, date: string): MessageRecord[] {
-  return readRecentMessages(projectDir, date, Infinity);
+export function readAllMessages(projectDir: string, date: string, chatId: string): MessageRecord[] {
+  return readRecentMessages(projectDir, date, chatId, Infinity);
 }
 
 // ============================================================================
 // L1 - Daily Summaries
 // ============================================================================
 
-export function writeDailySummary(projectDir: string, summary: DailySummary): void {
-  ensureMemoryDir(projectDir, L1_DIR);
-  const filePath = getMemoryFilePath(projectDir, L1_DIR, `${summary.date}.md`);
+export function writeDailySummary(projectDir: string, summary: DailySummary, chatId: string): void {
+  ensureSessionL1Dir(projectDir, chatId);
+  const filePath = getSessionL1FilePath(projectDir, chatId, summary.date);
   const content = `# Daily Summary - ${summary.date}
 
 ## Topics
@@ -169,8 +206,8 @@ ${summary.summary}
   writeFileSync(filePath, content);
 }
 
-export function readDailySummary(projectDir: string, date: string): DailySummary | null {
-  const filePath = getMemoryFilePath(projectDir, L1_DIR, `${date}.md`);
+export function readDailySummary(projectDir: string, date: string, chatId: string): DailySummary | null {
+  const filePath = getSessionL1FilePath(projectDir, chatId, date);
   if (!existsSync(filePath)) {
     return null;
   }
@@ -184,8 +221,8 @@ export function readDailySummary(projectDir: string, date: string): DailySummary
   };
 }
 
-export function readDailySummaries(projectDir: string, count: number = 3): DailySummary[] {
-  const files = listMemoryFiles(projectDir, L1_DIR, '.md')
+export function readDailySummaries(projectDir: string, count: number, chatId: string): DailySummary[] {
+  const files = listSessionL1Files(projectDir, chatId, '.md')
     .sort()
     .reverse()
     .slice(0, count);
@@ -193,7 +230,7 @@ export function readDailySummaries(projectDir: string, count: number = 3): Daily
   const summaries: DailySummary[] = [];
   for (const file of files) {
     const date = file.replace('.md', '');
-    const summary = readDailySummary(projectDir, date);
+    const summary = readDailySummary(projectDir, date, chatId);
     if (summary) {
       summaries.push(summary);
     }
@@ -220,9 +257,9 @@ export function getWeekEnd(weekStart: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export function writeWeeklySummary(projectDir: string, summary: WeeklySummary): void {
-  ensureMemoryDir(projectDir, L2_DIR);
-  const filePath = getMemoryFilePath(projectDir, L2_DIR, `${summary.week_start}.md`);
+export function writeWeeklySummary(projectDir: string, summary: WeeklySummary, chatId: string): void {
+  ensureSessionL2Dir(projectDir, chatId);
+  const filePath = getSessionL2FilePath(projectDir, chatId, summary.week_start);
   const content = `# Weekly Summary - ${summary.week_start} to ${summary.week_end}
 
 ## Topics
@@ -238,8 +275,8 @@ ${summary.summary}
   writeFileSync(filePath, content);
 }
 
-export function readWeeklySummary(projectDir: string, weekStart: string): WeeklySummary | null {
-  const filePath = getMemoryFilePath(projectDir, L2_DIR, `${weekStart}.md`);
+export function readWeeklySummary(projectDir: string, weekStart: string, chatId: string): WeeklySummary | null {
+  const filePath = getSessionL2FilePath(projectDir, chatId, weekStart);
   if (!existsSync(filePath)) {
     return null;
   }
@@ -255,8 +292,8 @@ export function readWeeklySummary(projectDir: string, weekStart: string): Weekly
   };
 }
 
-export function readWeeklySummaries(projectDir: string, count: number = 3): WeeklySummary[] {
-  const files = listMemoryFiles(projectDir, L2_DIR, '.md')
+export function readWeeklySummaries(projectDir: string, count: number, chatId: string): WeeklySummary[] {
+  const files = listSessionL2Files(projectDir, chatId, '.md')
     .sort()
     .reverse()
     .slice(0, count);
@@ -264,7 +301,7 @@ export function readWeeklySummaries(projectDir: string, count: number = 3): Week
   const summaries: WeeklySummary[] = [];
   for (const file of files) {
     const weekStart = file.replace('.md', '');
-    const summary = readWeeklySummary(projectDir, weekStart);
+    const summary = readWeeklySummary(projectDir, weekStart, chatId);
     if (summary) {
       summaries.push(summary);
     }

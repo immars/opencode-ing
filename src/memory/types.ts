@@ -22,6 +22,12 @@ export interface MessageRecord {
   role: 'user' | 'assistant';
   content: string;
   source: 'feishu' | 'system';
+  /** Chat/session ID for session-based storage */
+  chat_id?: string;
+  /** Sender's user ID (optional) */
+  sender_id?: string;
+  /** Sender's display name (optional) */
+  sender_name?: string;
 }
 
 /**

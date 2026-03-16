@@ -7,7 +7,7 @@
 
 import { parseCronFile, getActiveTasks } from './memory/cron.js';
 import type { CronTask } from './memory/types.js';
-import { readCron, readCronSys, readTasks } from './memory/levels.js';
+import { readCron, readCronSys, readTasks, readSessionCron, readSessionCronSys, readSessionTasks } from './memory/levels.js';
 import { 
   getTaskContext, 
   getCronContext, 
@@ -19,8 +19,10 @@ import {
   getL2Path
 } from './memory/context.js';
 import { CronSysSessionManager, getOrCreateManagedSession, getOrCreateChatSession } from './memory/session.js';
+import { listAllSessions, getSessionL9FilePath, getSessionL1FilePath, getSessionL2FilePath } from './memory/paths.js';
 import { logger } from './logger.js';
-import { writeFileSync } from 'fs';
+import { writeFileSync, existsSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
 
 let schedulerInterval: NodeJS.Timeout | null = null;
 let isRunning = false;
@@ -98,6 +100,7 @@ async function executeScheduledTasks(
 
   logger.info('Scheduler', 'Triggered at', now.toISOString());
 
+  // Execute global tasks
   const taskContent = readTasks(projectDir);
   const cronContent = readCron(projectDir);
   const cronSysContent = readCronSys(projectDir);
@@ -121,6 +124,35 @@ async function executeScheduledTasks(
 
   for (const task of activeSystemTasks) {
     await executeCronSysTask(projectDir, client, task, cronSysContent);
+  }
+
+  // Execute per-session tasks
+  const sessions = listAllSessions(projectDir);
+  for (const chatId of sessions) {
+    const sessionTaskContent = readSessionTasks(projectDir, chatId);
+    const sessionCronContent = readSessionCron(projectDir, chatId);
+    const sessionCronSysContent = readSessionCronSys(projectDir, chatId);
+
+    const sessionUserTasks = parseCronFile(sessionCronContent);
+    const sessionSystemTasks = parseCronFile(sessionCronSysContent);
+
+    const enabledSessionUserTasks = sessionUserTasks.filter((t) => t.enabled);
+    const enabledSessionSystemTasks = sessionSystemTasks.filter((t) => t.enabled);
+
+    const activeSessionUserTasks = getActiveTasks(enabledSessionUserTasks, now);
+    const activeSessionSystemTasks = getActiveTasks(enabledSessionSystemTasks, now);
+
+    if (sessionTaskContent.trim()) {
+      await executeSessionTask(projectDir, client, chatId, sessionTaskContent);
+    }
+
+    for (const task of activeSessionUserTasks) {
+      await executeSessionCronTask(projectDir, client, task, sessionCronContent, chatId);
+    }
+
+    for (const task of activeSessionSystemTasks) {
+      await executeSessionCronSysTask(projectDir, client, task, sessionCronSysContent, chatId);
+    }
   }
 }
 
@@ -218,7 +250,7 @@ async function executeCronSysTask(
       return;
     }
 
-    const compressionPrompt = buildCompressionPrompt(projectDir, taskType);
+    const compressionPrompt = buildCompressionPrompt(projectDir, taskType, 'cron_sys');
     const sessionManager = new CronSysSessionManager(client);
     const sessionId = await sessionManager.createSession();
 
@@ -252,6 +284,158 @@ async function executeCronSysTask(
   } catch (err) {
     logger.error('Scheduler', 'Failed to execute CRON_SYS task:', err);
   }
+}
+
+/**
+ * Execute per-session TASK.md
+ */
+async function executeSessionTask(
+  projectDir: string,
+  client: any,
+  chatId: string,
+  taskContent: string
+): Promise<void> {
+  try {
+    logger.info('Scheduler', 'Executing session TASK.md for:', chatId);
+
+    const contextPrompt = taskContent || 'No tasks defined';
+    const sessionId = await getOrCreateChatSession(client, projectDir, chatId);
+
+    if (!sessionId) {
+      logger.error('Scheduler', 'Failed to get or create session for session TASK execution');
+      return;
+    }
+
+    await client.session.prompt({
+      path: { id: sessionId },
+      body: {
+        agent: 'assistant',
+        parts: [{ type: 'text', text: contextPrompt }],
+      },
+    });
+
+    logger.info('Scheduler', 'Session TASK.md execution completed for:', chatId);
+  } catch (err) {
+    logger.error('Scheduler', 'Failed to execute session TASK:', err);
+  }
+}
+
+/**
+ * Execute per-session CRON.md task
+ */
+async function executeSessionCronTask(
+  projectDir: string,
+  client: any,
+  task: CronTask,
+  fullCronContent: string,
+  chatId: string
+): Promise<void> {
+  try {
+    logger.info('Scheduler', 'Executing session CRON task:', task.name, 'for:', chatId);
+
+    const taskContent = extractTaskContent(fullCronContent, task.name);
+    const contextPrompt = taskContent || 'No task content';
+
+    const sessionId = await getOrCreateChatSession(client, projectDir, chatId);
+
+    if (!sessionId) {
+      logger.error('Scheduler', 'Failed to get or create session for session CRON execution');
+      return;
+    }
+
+    await client.session.prompt({
+      path: { id: sessionId },
+      body: {
+        agent: 'assistant',
+        parts: [{ type: 'text', text: contextPrompt }],
+      },
+    });
+
+    logger.info('Scheduler', 'Session CRON task completed:', task.name, 'for:', chatId);
+  } catch (err) {
+    logger.error('Scheduler', 'Failed to execute session CRON task:', err);
+  }
+}
+
+/**
+ * Execute per-session CRON_SYS.md task with per-session L1/L2 paths
+ */
+async function executeSessionCronSysTask(
+  projectDir: string,
+  client: any,
+  task: CronTask,
+  fullCronSysContent: string,
+  chatId: string
+): Promise<void> {
+  try {
+    const sessionDir = dirname(getSessionL9FilePath(projectDir, chatId, 'TASK.md'));
+    if (!existsSync(sessionDir)) {
+      mkdirSync(sessionDir, { recursive: true });
+    }
+
+    logger.info('Scheduler', 'Executing session CRON_SYS task:', task.name, 'for:', chatId);
+
+    const taskType = detectCompressionType(task.name);
+    if (!taskType) {
+      logger.warn('Scheduler', 'Unknown CRON_SYS task type:', task.name);
+      return;
+    }
+
+    const compressionPrompt = buildCompressionPrompt(projectDir, taskType, chatId);
+    const sessionManager = new CronSysSessionManager(client);
+    const sessionId = await sessionManager.createSession();
+
+    if (!sessionId) {
+      logger.error('Scheduler', 'Failed to create cron sys session');
+      return;
+    }
+
+    const result = await client.session.prompt({
+      path: { id: sessionId },
+      body: {
+        agent: 'assistant',
+        parts: [{ type: 'text', text: compressionPrompt }],
+      },
+    });
+
+    const response = (result as any)?.data;
+    const parts = response?.parts || [];
+    const textParts = parts.filter((p: any) => p.type === 'text');
+    const responseText = textParts.map((p: any) => p.text).join('\n');
+
+    const summary = extractSummary(responseText);
+    if (!summary) {
+      logger.error('Scheduler', 'No <summary> tag found in agent response');
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const weekStart = getWeekStart(new Date());
+    const targetPath = taskType === 'L1' 
+      ? getSessionL1FilePath(projectDir, chatId, today)
+      : getSessionL2FilePath(projectDir, chatId, weekStart);
+    
+    const targetDir = dirname(targetPath);
+    if (!existsSync(targetDir)) {
+      mkdirSync(targetDir, { recursive: true });
+    }
+    
+    writeFileSync(targetPath, summary, 'utf-8');
+    logger.info('Scheduler', 'Session CRON_SYS task completed:', task.name, '→', targetPath);
+  } catch (err) {
+    logger.error('Scheduler', 'Failed to execute session CRON_SYS task:', err);
+  }
+}
+
+/**
+ * Get week start date (Monday) for a given date
+ */
+function getWeekStart(date: Date): string {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  d.setDate(diff);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /**

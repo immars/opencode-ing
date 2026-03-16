@@ -12,6 +12,7 @@ import type { Plugin, Hooks } from '@opencode-ai/plugin';
 import { loadFeishuConfig, getFeishuContext, formatContextAsPrompt } from './memory.js';
 import { readSoul } from './memory/levels.js';
 import { SESSION_PREFIXES } from './memory/constants.js';
+import { getChatIdFromSession } from './memory/session.js';
 import { createFeishuClient, createWSClient, closeWSClient, checkConnection, sendMessage } from './feishu.js';
 import { handleFeishuMessage } from './agent/message-handler.js';
 import { createSessionEventHandler } from './agent/session-event-handler.js';
@@ -155,7 +156,8 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
 
     if (sessionType === 'chat') {
       try {
-        const memoryContext = getFeishuContext(directory);
+        const chatId = await getChatIdFromSession(client, sessionId);
+        const memoryContext = getFeishuContext(directory, chatId || 'default');
         const contextPrompt = formatContextAsPrompt(memoryContext);
 
         if (contextPrompt) {
