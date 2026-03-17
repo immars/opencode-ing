@@ -1,21 +1,10 @@
-import { createFeishuClient, sendMarkdownMessage, addReaction, removeReaction, parseFeishuMessageContent } from '../feishu.js';
+import { addReaction, removeReaction, parseFeishuMessageContent } from '../feishu.js';
 import { getOrCreateChatSession } from '../memory/session.js';
 import { saveContact } from '../contacts.js';
-import { writeMessageRecord } from '../memory/levels.js';
-import { prettifyMessage } from '../prettifier.js';
 import { logger } from '../logger.js';
-import {
-  addToQueue,
-  getQueueLength,
-  setSessionTracking,
-  setChatSessionMapping,
-  getSessionTracking,
-  clearSessionTracking,
-  type QueuedMessage,
-} from './state.js';
-
-const AGENT_NAME = 'assistant';
-const CUT_IN_COMMAND = '/插队';
+import { setChatSessionMapping, getSessionTracking } from './state.js';
+import { CUT_IN_COMMAND, handleCutInCommand } from './commands.js';
+import { handleQueueMessage, processMessageDirectly } from './queue.js';
 
 export interface MessageHandlerDeps {
   client: any;
@@ -69,7 +58,7 @@ export async function handleFeishuMessage(
   const timestamp = new Date().toISOString();
 
   if (textContent === CUT_IN_COMMAND) {
-    await handleCutInCommand(deps, chatId, sessionId, messageId, directory, todayStr);
+    await handleCutInCommand(deps, chatId, sessionId, messageId);
     return;
   }
 
@@ -80,22 +69,18 @@ export async function handleFeishuMessage(
     const localBusy = !!getSessionTracking(chatId);
     const isBusy = remoteBusy || localBusy;
 
+    const queuedMsg = {
+      textContent,
+      messageId: messageId || '',
+      timestamp: Date.now(),
+      senderId,
+      senderName,
+    };
+
     if (isBusy) {
-      await handleQueueMessage(deps, {
-        textContent,
-        messageId: messageId || '',
-        timestamp: Date.now(),
-        senderId,
-        senderName,
-      }, chatId, sessionId, directory, todayStr);
+      await handleQueueMessage(deps, queuedMsg, chatId, sessionId, todayStr);
     } else {
-      await processMessageDirectly(deps, {
-        textContent,
-        messageId: messageId || '',
-        timestamp: Date.now(),
-        senderId,
-        senderName,
-      }, chatId, sessionId, directory, todayStr, timestamp);
+      await processMessageDirectly(deps, queuedMsg, chatId, sessionId, todayStr, timestamp);
     }
   } catch (err) {
     logger.error('MessageHandler', 'Error checking session status:', err);
@@ -105,119 +90,10 @@ export async function handleFeishuMessage(
       timestamp: Date.now(),
       senderId,
       senderName,
-    }, chatId, sessionId, directory, todayStr, timestamp);
+    }, chatId, sessionId, todayStr, timestamp);
   } finally {
     if (messageId) {
       await removeReaction(directory, messageId);
     }
-  }
-}
-
-async function handleCutInCommand(
-  deps: MessageHandlerDeps,
-  chatId: string,
-  sessionId: string,
-  messageId: string | undefined,
-  directory: string,
-  todayStr: string
-): Promise<void> {
-  const { client } = deps;
-  const tracking = getSessionTracking(chatId);
-
-  logger.info('MessageHandler', 'Cut-in command received for chat:', chatId);
-
-  try {
-    const statusResult = await client.session.status();
-    const sessionStatus = statusResult.data?.[sessionId];
-    const isBusy = sessionStatus?.type === 'busy';
-
-    if (isBusy) {
-      logger.info('MessageHandler', 'Aborting busy session for cut-in:', sessionId);
-      await client.session.abort({ path: { id: sessionId } });
-      clearSessionTracking(chatId);
-    }
-
-    await sendMarkdownMessage(directory, chatId, '⚡ 已取消当前任务，准备处理下一条消息...');
-  } catch (err) {
-    logger.error('MessageHandler', 'Error handling cut-in command:', err);
-  } finally {
-    if (messageId) {
-      await removeReaction(directory, messageId);
-    }
-  }
-}
-
-async function handleQueueMessage(
-  deps: MessageHandlerDeps,
-  queuedMsg: QueuedMessage,
-  chatId: string,
-  sessionId: string,
-  directory: string,
-  todayStr: string
-): Promise<void> {
-  const queueLength = addToQueue(chatId, queuedMsg);
-  
-  try {
-    writeMessageRecord(directory, todayStr, {
-      timestamp: new Date().toISOString(),
-      role: 'user',
-      content: queuedMsg.textContent,
-      source: 'feishu',
-      chat_id: chatId,
-      sender_id: queuedMsg.senderId,
-      sender_name: queuedMsg.senderName,
-    }, chatId);
-  } catch (e) {
-    logger.error('MessageHandler', 'Failed to write message record:', e);
-  }
-
-  const queueMsg = `🤖消息排队中(${queueLength})...回复'/插队'插队`;
-  await sendMarkdownMessage(directory, chatId, queueMsg);
-
-  logger.info('MessageHandler', 'Message queued for chat:', chatId, 'queue length:', queueLength);
-}
-
-async function processMessageDirectly(
-  deps: MessageHandlerDeps,
-  msg: QueuedMessage,
-  chatId: string,
-  sessionId: string,
-  directory: string,
-  todayStr: string,
-  timestamp: string
-): Promise<void> {
-  const { client } = deps;
-
-  setSessionTracking(chatId, {
-    lastUpdateTime: Date.now(),
-    sessionId,
-  });
-
-  try {
-    writeMessageRecord(directory, todayStr, {
-      timestamp,
-      role: 'user',
-      content: msg.textContent,
-      source: 'feishu',
-      chat_id: chatId,
-      sender_id: msg.senderId,
-      sender_name: msg.senderName,
-    }, chatId);
-  } catch (e) {
-    logger.error('MessageHandler', 'Failed to write message record:', e);
-  }
-
-  try {
-    await client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        agent: AGENT_NAME,
-        parts: [{ type: 'text', text: msg.textContent }],
-      },
-    });
-
-    logger.info('MessageHandler', 'Message sent via promptAsync to session:', sessionId);
-  } catch (err) {
-    logger.error('MessageHandler', 'Error sending message via promptAsync:', err);
   }
 }

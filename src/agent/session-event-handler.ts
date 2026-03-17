@@ -1,6 +1,5 @@
 import type { Event, Part, Message } from '@opencode-ai/sdk';
 import { parseChatIdFromTitle } from '../memory/session.js';
-import { loadFeishuConfig } from '../config.js';
 import { SESSION_PREFIXES } from '../memory/constants.js';
 import { writeMessageRecord } from '../memory/levels.js';
 import { logger } from '../logger.js';
@@ -11,18 +10,13 @@ import {
   getChatIdBySessionId,
   updateLastUpdateTime,
   clearSessionTracking,
-  getQueueLength,
-  removeFromQueue,
-  setSessionTracking,
-  getSessionIdByChatId,
 } from './state.js';
+import { processQueueIfExists } from './queue.js';
 
 interface SessionEventDeps {
   directory: string;
   client: any;
 }
-
-const AGENT_NAME = 'assistant';
 
 export async function handleSessionIdle(
   deps: SessionEventDeps,
@@ -107,41 +101,6 @@ export async function handleSessionUpdated(
   }
 }
 
-async function processQueueIfExists(
-  deps: SessionEventDeps,
-  chatId: string,
-  sessionId: string
-): Promise<void> {
-  const { client } = deps;
-  const queueLength = getQueueLength(chatId);
-  
-  if (queueLength === 0) {
-    return;
-  }
-
-  const nextMsg = removeFromQueue(chatId);
-  if (!nextMsg) return;
-
-  logger.info('SessionEvent', 'Processing queued message for chat:', chatId, 'remaining:', queueLength - 1);
-
-  setSessionTracking(chatId, {
-    lastUpdateTime: Date.now(),
-    sessionId,
-  });
-
-  try {
-    await client.session.promptAsync({
-      path: { id: sessionId },
-      body: {
-        agent: AGENT_NAME,
-        parts: [{ type: 'text', text: nextMsg.textContent }],
-      },
-    });
-  } catch (err) {
-    logger.error('SessionEvent', 'Failed to send queued message:', err);
-  }
-}
-
 export function createSessionEventHandler(deps: SessionEventDeps) {
   return async (input: { event: Event }): Promise<void> => {
     const { event } = input;
@@ -200,5 +159,5 @@ function extractTextFromParts(parts: Part[]): string {
     }
   }
 
-    return textParts.join('\n');
+  return textParts.join('\n');
 }
