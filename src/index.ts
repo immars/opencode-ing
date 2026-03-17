@@ -17,7 +17,7 @@ import { createFeishuClient, createWSClient, closeWSClient, checkConnection, sen
 import { handleFeishuMessage } from './agent/message-handler.js';
 import { createSessionEventHandler } from './agent/session-event-handler.js';
 import { createTools } from './tools.js';
-import { startSchedulerWithAgent } from './scheduler.js';
+import { startSchedulerWithAgent } from './scheduler/index.js';
 import { loadContacts } from './contacts.js';
 import { setLoggerClient, logger } from './logger.js';
 import { startStuckDetector } from './agent/stuck-detector.js';
