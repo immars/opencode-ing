@@ -37,6 +37,18 @@ function shouldRotateByTokens(session: SessionInfo): boolean {
   return session.total_tokens >= CONTEXT_WINDOW * THRESHOLD;
 }
 
+async function shouldRotateByMessages(client: any, sessionId: string, maxMessages: number = 10): Promise<boolean> {
+  try {
+    const messagesResp = await client.session.messages({ path: { id: sessionId } });
+    const messages = messagesResp?.data || [];
+    const chatMessages = messages.filter((m: any) => m.info?.role === 'user' || m.info?.role === 'assistant');
+    return chatMessages.length >= maxMessages;
+  } catch (err) {
+    logger.error('Session', `Failed to check messages for session ${sessionId}:`, err);
+    return false;
+  }
+}
+
 export async function housekeepSessions(
   client: any,
   prefix: string,
@@ -115,6 +127,11 @@ export async function getOrCreateManagedSession(
 
     const newSessionId = newSession.data?.id;
     if (newSessionId) {
+      try {
+        await client.session.init({ path: { id: newSessionId } });
+      } catch (initErr) {
+        logger.warn('Session', `Failed to init managed session ${newSessionId}:`, initErr);
+      }
       logger.info('Session', 'Created:', sessionTitle);
       return newSessionId;
     }
@@ -227,7 +244,9 @@ export async function getOrCreateChatSession(
 
     if (chatSessions.length > 0) {
       const session = chatSessions[0];
-      const needsRotation = shouldRotateByAge(session.created_at) || shouldRotateByTokens(session);
+      const needsRotation = shouldRotateByAge(session.created_at) || 
+                            shouldRotateByTokens(session) || 
+                            await shouldRotateByMessages(client, session.id, 10);
 
       if (!needsRotation) {
         return session.id;
@@ -247,6 +266,11 @@ export async function getOrCreateChatSession(
 
     const newSessionId = newSession.data?.id;
     if (newSessionId) {
+      try {
+        await client.session.init({ path: { id: newSessionId } });
+      } catch (initErr) {
+        logger.warn('ChatSession', `Failed to init chat session ${newSessionId}:`, initErr);
+      }
       logger.info('ChatSession', 'Created:', sessionTitle);
       return newSessionId;
     }
@@ -314,6 +338,11 @@ export class CronSysSessionManager {
 
       const newSessionId = newSession.data?.id;
       if (newSessionId) {
+        try {
+          await this.client.session.init({ path: { id: newSessionId } });
+        } catch (initErr) {
+          logger.warn('CronSysSession', `Failed to init cron sys session ${newSessionId}:`, initErr);
+        }
         logger.info('CronSysSession', 'Created:', sessionTitle);
         return newSessionId;
       }

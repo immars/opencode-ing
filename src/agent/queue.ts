@@ -1,11 +1,13 @@
-import { sendMarkdownMessage } from '../feishu.js';
+import { sendMarkdownMessage, removeReaction } from '../feishu.js';
 import { writeMessageRecord } from '../memory/levels.js';
 import { logger } from '../logger.js';
+import { getOrCreateChatSession } from '../memory/session.js';
 import {
   addToQueue,
   getQueueLength,
   removeFromQueue,
   setSessionTracking,
+  clearSessionTracking,
   type QueuedMessage,
 } from './state.js';
 
@@ -59,6 +61,7 @@ export async function processMessageDirectly(
   setSessionTracking(chatId, {
     lastUpdateTime: Date.now(),
     sessionId,
+    currentMessageId: msg.messageId,
   });
 
   try {
@@ -87,15 +90,19 @@ export async function processMessageDirectly(
     logger.info('QueueHandler', 'Message sent via promptAsync to session:', sessionId);
   } catch (err) {
     logger.error('QueueHandler', 'Error sending message via promptAsync:', err);
+    clearSessionTracking(chatId);
+    if (msg.messageId) {
+      await removeReaction(directory, msg.messageId);
+    }
   }
 }
 
 export async function processQueueIfExists(
   deps: QueueDeps,
   chatId: string,
-  sessionId: string
+  oldSessionId: string
 ): Promise<void> {
-  const { client } = deps;
+  const { client, directory } = deps;
   const queueLength = getQueueLength(chatId);
   
   if (queueLength === 0) {
@@ -107,14 +114,17 @@ export async function processQueueIfExists(
 
   logger.info('QueueHandler', 'Processing queued message for chat:', chatId, 'remaining:', queueLength - 1);
 
+  const targetSessionId = await getOrCreateChatSession(client, directory, chatId) || oldSessionId;
+
   setSessionTracking(chatId, {
     lastUpdateTime: Date.now(),
-    sessionId,
+    sessionId: targetSessionId,
+    currentMessageId: nextMsg.messageId,
   });
 
   try {
     await client.session.promptAsync({
-      path: { id: sessionId },
+      path: { id: targetSessionId },
       body: {
         agent: AGENT_NAME,
         parts: [{ type: 'text', text: nextMsg.textContent }],
@@ -122,5 +132,9 @@ export async function processQueueIfExists(
     });
   } catch (err) {
     logger.error('QueueHandler', 'Failed to send queued message:', err);
+    clearSessionTracking(chatId);
+    if (nextMsg.messageId) {
+      await removeReaction(deps.directory, nextMsg.messageId);
+    }
   }
 }

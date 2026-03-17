@@ -3,13 +3,14 @@ import { parseChatIdFromTitle } from '../memory/session.js';
 import { SESSION_PREFIXES } from '../memory/constants.js';
 import { writeMessageRecord } from '../memory/levels.js';
 import { logger } from '../logger.js';
-import { sendMarkdownMessage, sendMessage } from '../feishu.js';
+import { sendMarkdownMessage, sendMessage, removeReaction } from '../feishu.js';
 import { prettifyMessage } from '../prettifier.js';
 import {
   markMessageProcessed,
   getChatIdBySessionId,
   updateLastUpdateTime,
   clearSessionTracking,
+  getSessionTracking,
 } from './state.js';
 import { processQueueIfExists } from './queue.js';
 
@@ -36,55 +37,64 @@ export async function handleSessionIdle(
       return;
     }
 
+    const tracking = getSessionTracking(chatId);
+    const feishuMessageId = tracking?.currentMessageId;
+
     clearSessionTracking(chatId);
 
-    const lastAssistantMessage = await getLastAssistantMessage(client, sessionId);
-    if (!lastAssistantMessage) {
-      await processQueueIfExists(deps, chatId, sessionId);
-      return;
-    }
-
-    const messageId = lastAssistantMessage.info.id;
-    if (!markMessageProcessed(messageId)) {
-      logger.debug('SessionEvent', 'Message already processed:', messageId);
-      return;
-    }
-
-    const textContent = extractTextFromParts(lastAssistantMessage.parts);
-    if (!textContent.trim()) {
-      await processQueueIfExists(deps, chatId, sessionId);
-      return;
-    }
-
-    const pretty = prettifyMessage(textContent);
-    let success = await sendMarkdownMessage(directory, chatId, pretty.text);
-    
-    if (!success) {
-      logger.warn('SessionEvent', 'Failed to send markdown card, falling back to plain text:', chatId);
-      success = await sendMessage(directory, chatId, pretty.text);
-    }
-
-    if (success) {
-      logger.info('SessionEvent', 'Sent agent response to Feishu chat:', chatId);
-    } else {
-      logger.error('SessionEvent', 'Failed to send to Feishu chat even after fallback:', chatId);
-    }
-
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     try {
-      writeMessageRecord(directory, todayStr, {
-        timestamp: new Date().toISOString(),
-        role: 'assistant',
-        content: textContent,
-        source: 'feishu',
-        chat_id: chatId,
-      }, chatId);
-    } catch (e) {
-      logger.error('SessionEvent', 'Failed to write message record:', e);
-    }
+      const lastAssistantMessage = await getLastAssistantMessage(client, sessionId);
+      if (!lastAssistantMessage) {
+        await processQueueIfExists(deps, chatId, sessionId);
+        return;
+      }
 
-    await processQueueIfExists(deps, chatId, sessionId);
+      const messageId = lastAssistantMessage.info.id;
+      if (!markMessageProcessed(messageId)) {
+        logger.debug('SessionEvent', 'Message already processed:', messageId);
+        return;
+      }
+
+      const textContent = extractTextFromParts(lastAssistantMessage.parts);
+      if (!textContent.trim()) {
+        await processQueueIfExists(deps, chatId, sessionId);
+        return;
+      }
+
+      const pretty = prettifyMessage(textContent);
+      let success = await sendMarkdownMessage(directory, chatId, pretty.text);
+      
+      if (!success) {
+        logger.warn('SessionEvent', 'Failed to send markdown card, falling back to plain text:', chatId);
+        success = await sendMessage(directory, chatId, pretty.text);
+      }
+
+      if (success) {
+        logger.info('SessionEvent', 'Sent agent response to Feishu chat:', chatId);
+      } else {
+        logger.error('SessionEvent', 'Failed to send to Feishu chat even after fallback:', chatId);
+      }
+
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      try {
+        writeMessageRecord(directory, todayStr, {
+          timestamp: new Date().toISOString(),
+          role: 'assistant',
+          content: textContent,
+          source: 'feishu',
+          chat_id: chatId,
+        }, chatId);
+      } catch (e) {
+        logger.error('SessionEvent', 'Failed to write message record:', e);
+      }
+
+      await processQueueIfExists(deps, chatId, sessionId);
+    } finally {
+      if (feishuMessageId) {
+        await removeReaction(directory, feishuMessageId);
+      }
+    }
   } catch (err) {
     logger.error('SessionEvent', 'Error handling session.idle:', err);
   }

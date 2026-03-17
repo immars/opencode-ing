@@ -91,9 +91,5 @@ export async function handleFeishuMessage(
       senderId,
       senderName,
     }, chatId, sessionId, todayStr, timestamp);
-  } finally {
-    if (messageId) {
-      await removeReaction(directory, messageId);
-    }
   }
 }

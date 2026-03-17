@@ -22,6 +22,8 @@ important reference:
 
 ## Build / Development Commands
 
+每次完成需求的开发或者问题修复，需要验证以后再告诉用户。
+
 ```bash
 # Build TypeScript
 npm run build          # Compile TypeScript to dist/

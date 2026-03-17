@@ -49,6 +49,7 @@ export interface QueuedMessage {
 export interface SessionTracking {
   lastUpdateTime: number;
   sessionId: string;
+  currentMessageId?: string;
 }
 
 /** Pending message queues per chat */
