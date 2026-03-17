@@ -1,120 +1,119 @@
-# OpenCode-ing
+# OpenCode-ing 🤖
 
-A long-running autonomous AI agent that integrates with Feishu (飞书) messaging platform, built on top of OpenCode.
+OpenCode-ing 是一个基于 `OpenCode` 平台的长期运行的自主 AI Agent 插件。它深度集成了**飞书（Feishu）**消息平台，使其能够实时响应用户的飞书消息，并拥有独立的高级分级持久化记忆系统，可用于复杂的长期对话与任务执行。
 
-## Features
+## 主要特点
 
-- **Long-running Agent**: Continuously operates as an autonomous agent
-- **Feishu Integration**: Real-time messaging via WebSocket through 飞书
-- **Hierarchical Memory System**: Multi-level memory architecture (L0/L1/L2/L9) for efficient context management
-- **Scheduled Tasks**: Cron-based task scheduling for periodic operations
-- **Session Management**: Intelligent session rotation and management
+- **安全性 ≈ Opencode。** Agent 处于 Opencode 的框架之内运行。如果你的工作环境认为Openclaw风险太大，但Opencode可以接受，那么 opencode-ing **理论上** 跟opencode 一样安全。
+- **实现简单。** 功能不多，代码量不大；有什么问题可以直接修改，风险也比较小。应对固定的自动化工作场景应该足够了。
+- **可复用Opencode的能力。** Opencode配置的全局skill，这个Assistant Agent也有。具有直接上手开发的能力。
 
-## Quick Start
 
-### Prerequisites
+## ✨ 核心特性
 
-- Node.js 18+
-- OpenCode CLI installed
+- 🧠 **分层持久化记忆系统**：实现了多个层级的长短期记忆管理。
+- 💬 **飞书无缝集成**：使用飞书 SDK 的 WebSocket 长轮询，实现低延迟的实时消息处理。
+- ⏰ **定时任务调度 (Cron Tasks)**：支持自主触发的定时任务执行。
+- 🔄 **会话与状态管理**：智能切分与管理 LLM 上下文 Token，防止上下文溢出。
 
-### Installation
+## 🛠️ 技术栈
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-org/opencode-ing.git
-   cd opencode-ing
-   ```
+- [TypeScript](https://www.typescriptlang.org/) (ES Modules)
+- [Node.js](https://nodejs.org/)
+- [@larksuiteoapi/node-sdk](https://github.com/larksuite/node-sdk) (飞书官方 SDK)
+- [@opencode-ai/plugin](https://github.com/anomalyco/opencode) (OpenCode 插件框架)
 
-2. Install dependencies:
-   ```bash
-   npm install
-   npm run build
-   ```
+## 📦 快速开始
 
-3. Start OpenCode in the project root:
-   ```bash
-   opencode
-   ```
+### 1. 依赖项
 
-4. Run the setup command:
-   ```
-   /ing-setup
-   ```
+你需要安装好一个[opencode](https://opencode.ai/)。
 
-This will guide you through Feishu authentication, API configuration, and agent startup.
+最好也安装上opencode的最佳搭档：[oh-my-opencode](https://github.com/code-yeongyu/oh-my-openagent)。
 
-## Project Structure
+请配置好opencode所使用的模型。这些模型也会被Opencode-ing Assistant Agent所使用。配置方法具体可以参考 [opencode 文档](https://opencode.ai/docs/models/)。
+
+
+### 2. 开发与构建
+
+
+1. clone 本项目到本地：
 
 ```
+git clone git@github.com:immars/opencode-ing.git
+
+```
+
+2. 启动opencode：
+
+```
+cd opencode-ing
+opencode
+```
+
+3. 在opencode会话中，使用`/ing-setup` 这个skill开始配置：
+
+```
+/ing-setup
+```
+opencode 的 agent 会引导你填入一些关键信息，比如飞书机器人的`app_id`和`app_secret`，完成配置和工作区准备工作。
+
+飞书机器人的配置，可以参考[这篇文章](https://www.volcengine.com/docs/6396/2189942?lang=zh)
+
+
+4. 如果配置成功，opencode 会提示你重新启动 opencode：
+
+```
+opencode
+```
+
+# 以下信息人类可忽略，For LLMs
+
+## 🧠 记忆系统架构
+
+为了实现长期的会话连贯性，OpenCode-ing 设计了层次化的记忆系统，将不同重要性与生命周期的上下文存放在不同的层级中：
+
+| 级别 | 存储路径 | 用途说明 | 容量/数量限制 |
+|------|----------|----------|----------|
+| **L0** | `memory/{chat_id}/L0/{date}.md` | 原始聊天记录 | 近期 60 条消息 |
+| **L1** | `memory/{chat_id}/L1/{date}.md` | 每日内容摘要 | 500 Bytes |
+| **L2** | `memory/{chat_id}/LL2/{date}.md` | 每周深度总结 | 500 Bytes |
+| **L9** | `memory/{SOUL,PEOPLE,...}.md`| 长期全局记忆 | 无限制 |
+
+- **飞书消息触发**：加载 L9 全局记忆 + 最新的 L0 记录 + 过去 3 天的 L1 + 过去 3 周的 L2。
+- **定时任务触发**：加载 L9 全局记忆 + 匹配的 CRON 任务定义。
+
+## 📂 项目结构
+
+```text
 opencode-ing/
-├── src/                    # Plugin source code (TypeScript)
-│   ├── index.ts            # Plugin entry point
-│   ├── config.ts           # Configuration loading
-│   ├── feishu.ts           # Feishu SDK integration
-│   ├── tools.ts            # OpenCode tool definitions
-│   ├── scheduler.ts        # Task scheduling
-│   ├── memory.ts           # Memory system facade
-│   ├── agent/              # Agent-specific modules
-│   └── memory/             # Memory system (L0/L1/L2/L9)
-├── dist/                   # Compiled output
+├── src/                    # 插件核心代码 (TypeScript)
+│   ├── index.ts            # 插件入口
+│   ├── config.ts           # 配置加载逻辑
+│   ├── feishu.ts           # 飞书 SDK 核心交互
+│   ├── tools.ts            # OpenCode 工具定义
+│   ├── scheduler.ts        # 定时任务调度器
+│   ├── memory.ts           # 记忆系统外观入口 (Facade)
+│   ├── agent/              # Agent 相关的特殊模块
+│   └── memory/             # 具体的 L0/L1/L2/L9 读写实现
+├── dist/                   # 构建产物
 ├── .opencode/
-│   ├── plugins/            # Plugin symlinks
-│   ├── skills/             # Project-specific skills
-│   └── agents/             # Agent configurations
-├── templates/              # Template files for onboarding
-├── doc/                    # Documentation
-└── .code-ing/              # Runtime workspace (gitignored)
-    ├── config/             # feishu.yaml
-    └── memory/             # Memory files (L0/L1/L2/L9)
+│   ├── plugins/            # 插件软链接
+│   ├── skills/             # 项目专用技能 (Skills)
+│   └── agents/             # Agent 配置文件
+├── templates/              # 初始化向导和配置模板文件
+├── doc/                    # 开发与说明文档
+└── .code-ing/              # 运行时生成的工作区 (已被 gitignore)
+    ├── config/             # 飞书配置存放位置 feishu.yaml
+    └── memory/             # 分级记忆文件持久化目录
 ```
 
-## Memory System
+## 📝 开发指南
 
-The memory system uses a hierarchical structure for efficient context loading:
+- **模块引入**：如果引入本地 TypeScript 模块，在 `import` 时必须携带 `.js` 后缀，例如：`import { loadFeishuConfig } from './config.js';`。
+- **错误处理**：常规的异步与文件读取失败通常不会抛出异常 (Throw)，而是统一返回 `null` 并在 `stderr` 输出日志。
+- **代码规范**：统一返回 `Promise<T | null>` 的形式处理飞书客户端错误，参考 `withLarkClient` 辅助函数。
 
-| Level | Location | Purpose | Max Size |
-|-------|----------|---------|----------|
-| L0 | `memory/L0/{date}.md` | Raw message logs | 60 messages |
-| L1 | `memory/L1/{date}.md` | Daily summaries | 500 bytes |
-| L2 | `memory/L2/{date}.md` | Weekly summaries | 500 bytes |
-| L9 | `memory/{SOUL,PEOPLE,TASK,CRON,CRON_SYS}.md` | Long-term memory | Variable |
+## 📄 开源协议
 
-### Context Injection
-
-- **Feishu message triggers**: L9 files + last 60 L0 messages + 3 L1 days + 3 L2 weeks
-- **Scheduled triggers**: L9 files + matching CRON tasks
-
-## Development
-
-### Build
-
-```bash
-npm run build    # Compile TypeScript
-npm run dev      # Watch mode
-```
-
-### Type Check
-
-```bash
-npm run typecheck
-```
-
-## Tech Stack
-
-- **Language**: TypeScript (ES modules)
-- **Runtime**: Node.js
-- **Feishu SDK**: @larksuiteoapi/node-sdk
-- **Validation**: zod
-- **Plugin Framework**: @opencode-ai/plugin
-
-## Documentation
-
-- [PRD](doc/PRD.md) - Product requirements
-- [Memory Design](doc/memory-design.md) - Memory system architecture
-- [Onboarding](doc/onboard.md) - Setup guide
-- [Feishu Interaction](doc/feishu-interaction.md) - Feishu integration details
-- [AGENTS.md](AGENTS.md) - Development guidelines for AI coding agents
-
-## License
-
-MIT
+本项目采用 MIT 协议开源。
