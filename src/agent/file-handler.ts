@@ -6,7 +6,6 @@
 
 import { downloadMessageFile } from '../feishu.js';
 import { saveFileToSession, type FileMetadata } from '../memory/files.js';
-import { logger } from '../logger.js';
 
 export interface FileInfo {
   type: 'image' | 'file' | 'audio' | 'media';
@@ -34,18 +33,12 @@ interface MessageData {
   chat_id?: string;
 }
 
-/**
- * 格式化文件大小
- */
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/**
- * 格式化单个文件信息
- */
 function formatFileInfo(file: FileInfo): string {
   if (file.type === 'image') {
     return `[图片: ${file.originalName}]\n路径: ${file.localPath}`;
@@ -59,9 +52,6 @@ function formatFileInfo(file: FileInfo): string {
   ].join('\n');
 }
 
-/**
- * 格式化多个文件信息
- */
 function formatMultipleFiles(files: FileInfo[]): string {
   if (files.length === 0) return '';
   if (files.length === 1) return formatFileInfo(files[0]);
@@ -74,9 +64,6 @@ function formatMultipleFiles(files: FileInfo[]): string {
   return '\n' + formatted.join('\n');
 }
 
-/**
- * 处理图片消息
- */
 async function processImageMessage(
   deps: MessageHandlerDeps,
   message: MessageData,
@@ -86,9 +73,11 @@ async function processImageMessage(
   const chatId = message.chat_id;
   
   if (!chatId) {
-    logger.error('FileHandler', 'No chat_id in image message');
+    console.error('[FileHandler] No chat_id in image message');
     return null;
   }
+  
+  console.error(`[FileHandler] Downloading image: ${content.image_key}`);
   
   const downloadResult = await downloadMessageFile(
     directory,
@@ -98,11 +87,12 @@ async function processImageMessage(
   );
   
   if (!downloadResult || !downloadResult.buffer) {
-    logger.error('FileHandler', `Failed to download image: ${content.image_key}`);
+    console.error(`[FileHandler] Failed to download image: ${content.image_key}, result: ${JSON.stringify(downloadResult)}`);
     return null;
   }
   
-  // 从 contentType 推断扩展名
+  console.error(`[FileHandler] Image downloaded successfully, size: ${downloadResult.buffer.length} bytes`);
+  
   let ext = 'jpg';
   if (downloadResult.contentType) {
     if (downloadResult.contentType.includes('png')) ext = 'png';
@@ -133,9 +123,6 @@ async function processImageMessage(
   };
 }
 
-/**
- * 处理文件消息 (file/audio/media)
- */
 async function processFileMessage(
   deps: MessageHandlerDeps,
   message: MessageData,
@@ -146,7 +133,7 @@ async function processFileMessage(
   const chatId = message.chat_id;
   
   if (!chatId) {
-    logger.error('FileHandler', 'No chat_id in file message');
+    console.error('[FileHandler] No chat_id in file message');
     return null;
   }
   
@@ -158,7 +145,7 @@ async function processFileMessage(
   );
   
   if (!downloadResult || !downloadResult.buffer) {
-    logger.error('FileHandler', `Failed to download file: ${content.file_key}`);
+    console.error(`[FileHandler] Failed to download file: ${content.file_key}`);
     return null;
   }
   
@@ -191,15 +178,27 @@ async function processPostMessage(
   content: any
 ): Promise<FileInfo[]> {
   const files: FileInfo[] = [];
-  if (!content || !Array.isArray(content.content)) return files;
+  if (!content) {
+    console.error('[FileHandler] processPostMessage: content is null');
+    return files;
+  }
+  if (!Array.isArray(content.content)) {
+    console.error('[FileHandler] processPostMessage: content.content is not array', typeof content.content);
+    return files;
+  }
+
+  console.error(`[FileHandler] processPostMessage: found ${content.content.length} paragraphs`);
 
   for (const paragraph of content.content) {
     if (!Array.isArray(paragraph)) continue;
     for (const element of paragraph) {
       if (element.tag === 'img' && element.image_key) {
+        console.error(`[FileHandler] Found image in post: ${element.image_key}`);
         const fileInfo = await processImageMessage(deps, message, { image_key: element.image_key });
         if (fileInfo) {
           files.push(fileInfo);
+        } else {
+          console.error(`[FileHandler] Failed to process image: ${element.image_key}`);
         }
       }
     }
@@ -208,13 +207,6 @@ async function processPostMessage(
   return files;
 }
 
-/**
- * 处理消息中的文件部分
- * 
- * 支持的消息类型: image, file, audio, media, post
- * 
- * @returns 处理结果，包含文件信息和格式化后的内容
- */
 export async function processMessageFiles(
   deps: MessageHandlerDeps,
   message: MessageData
@@ -264,7 +256,7 @@ export async function processMessageFiles(
     };
     
   } catch (e) {
-    logger.error('FileHandler', 'Error processing file message:', e);
+    console.error('[FileHandler] Error processing file message:', e);
     return {
       success: false,
       files,

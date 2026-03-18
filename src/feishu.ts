@@ -368,6 +368,8 @@ export async function downloadMessageFile(
   fileKey: string,
   type: 'image' | 'file'
 ): Promise<DownloadedFile | null> {
+  console.error(`[Feishu] Downloading ${type}: ${fileKey}, message_id: ${messageId}`);
+  
   const result = await withLarkClient(projectDir, async (c) => {
     const response = await c.im.messageResource.get({
       path: {
@@ -378,6 +380,8 @@ export async function downloadMessageFile(
         type: type,
       },
     });
+    
+    console.error(`[Feishu] Download response: code=${response.code}, hasData=${!!response.data}`);
     
     return {
       buffer: response.data,
