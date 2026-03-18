@@ -1,6 +1,6 @@
-import { addReaction, removeReaction, parseFeishuMessageContent } from '../feishu.js';
+import { addReaction, removeReaction, parseFeishuMessageContent, getUserName } from '../feishu.js';
 import { getOrCreateChatSession } from '../memory/session.js';
-import { saveContact } from '../contacts.js';
+import { saveContact, findContact } from '../contacts.js';
 import { logger } from '../logger.js';
 import { processMessageFiles } from './file-handler.js';
 import { getTodayString, getNowString } from '../memory/utils.js';
@@ -25,12 +25,13 @@ export async function handleFeishuMessage(
   const msgType = msg.message?.message_type;
   const rawContent = msg.message?.content || '';
   const senderId = msg.sender?.sender_id?.open_id;
-  const senderName = msg.sender?.sender?.tenant_key;
+
+  let senderName: string | undefined;
 
   // 处理文件类型消息
   let textContent = '';
 
-  if (['image', 'file', 'audio', 'media'].includes(msgType)) {
+  if (['image', 'file', 'audio', 'media', 'post'].includes(msgType)) {
     // 文件消息：下载文件并格式化
     const fileResult = await processMessageFiles(deps, {
       message_id: messageId || '',
@@ -39,10 +40,17 @@ export async function handleFeishuMessage(
       chat_id: chatId,
     });
 
+    const parsedText = parseFeishuMessageContent(rawContent);
+
     if (fileResult.success && fileResult.files.length > 0) {
-      textContent = fileResult.formattedContent;
+      textContent = parsedText 
+        ? `${parsedText}\n\n${fileResult.formattedContent}` 
+        : fileResult.formattedContent;
     } else if (!fileResult.success) {
       logger.error('MessageHandler', 'File processing failed:', fileResult.error);
+      textContent = parsedText;
+    } else {
+      textContent = parsedText;
     }
   } else {
     // 文本消息：解析文本内容
@@ -59,8 +67,25 @@ export async function handleFeishuMessage(
     }
   }
 
+  if (chatType === 'p2p' && senderId) {
+    const existingContact = findContact(directory, chatId);
+    if (existingContact?.name) {
+      senderName = existingContact.name;
+    } else {
+      const userInfo = await getUserName(directory, senderId);
+      if (userInfo?.name) {
+        senderName = userInfo.name;
+      }
+    }
+  } else if (senderId) {
+    const userInfo = await getUserName(directory, senderId);
+    if (userInfo?.name) {
+      senderName = userInfo.name;
+    }
+  }
+
   try {
-    saveContact(directory, chatId, chatType || 'p2p');
+    saveContact(directory, chatId, chatType || 'p2p', senderName);
   } catch (e) {
     logger.error('MessageHandler', 'Failed to save contact:', e);
   }

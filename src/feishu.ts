@@ -161,7 +161,27 @@ export async function checkConnection(projectDir: string): Promise<boolean> {
 export function parseFeishuMessageContent(rawContent: string): string {
   try {
     const parsed = JSON.parse(rawContent);
-    return parsed.text || rawContent;
+    if (parsed.text) return parsed.text;
+    
+    if (parsed.title !== undefined && Array.isArray(parsed.content)) {
+      let text = parsed.title ? parsed.title + '\n' : '';
+      for (const paragraph of parsed.content) {
+        if (!Array.isArray(paragraph)) continue;
+        for (const element of paragraph) {
+          if (element.tag === 'text' && element.text) {
+            text += element.text;
+          } else if (element.tag === 'a' && element.href) {
+            text += `[${element.text || element.href}](${element.href})`;
+          } else if (element.tag === 'at' && element.user_id) {
+            text += `@${element.user_name || element.user_id}`;
+          }
+        }
+        text += '\n';
+      }
+      return text.trim() || rawContent;
+    }
+    
+    return rawContent;
   } catch (e) {
     return rawContent;
   }
@@ -409,6 +429,44 @@ export async function removeReaction(
     return deleteResult.code === 0;
   }, "Remove reaction failed:");
   return result ?? false;
+}
+
+// ============================================================================
+// User Info
+// ============================================================================
+
+export interface UserInfo {
+  open_id: string;
+  name?: string;
+  en_name?: string;
+}
+
+export async function getUserName(
+  projectDir: string,
+  openId: string
+): Promise<UserInfo | null> {
+  const result = await withLarkClient(projectDir, async (c) => {
+    const res = await c.contact.user.get({
+      path: {
+        user_id: openId,
+      },
+      params: {
+        user_id_type: 'open_id',
+      },
+    });
+    
+    if (res.code !== 0 || !res.data?.user) {
+      return null;
+    }
+    
+    return {
+      open_id: res.data.user.open_id,
+      name: res.data.user.name,
+      en_name: res.data.user.en_name,
+    };
+  }, `Failed to get user info: ${openId}`);
+  
+  return result;
 }
 
 // ============================================================================

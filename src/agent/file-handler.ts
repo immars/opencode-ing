@@ -185,10 +185,33 @@ async function processFileMessage(
   };
 }
 
+async function processPostMessage(
+  deps: MessageHandlerDeps,
+  message: MessageData,
+  content: any
+): Promise<FileInfo[]> {
+  const files: FileInfo[] = [];
+  if (!content || !Array.isArray(content.content)) return files;
+
+  for (const paragraph of content.content) {
+    if (!Array.isArray(paragraph)) continue;
+    for (const element of paragraph) {
+      if (element.tag === 'img' && element.image_key) {
+        const fileInfo = await processImageMessage(deps, message, { image_key: element.image_key });
+        if (fileInfo) {
+          files.push(fileInfo);
+        }
+      }
+    }
+  }
+  
+  return files;
+}
+
 /**
  * 处理消息中的文件部分
  * 
- * 支持的消息类型: image, file, audio, media
+ * 支持的消息类型: image, file, audio, media, post
  * 
  * @returns 处理结果，包含文件信息和格式化后的内容
  */
@@ -200,7 +223,6 @@ export async function processMessageFiles(
   const files: FileInfo[] = [];
   
   try {
-    // 解析 content JSON
     let parsedContent: any;
     try {
       parsedContent = JSON.parse(content);
@@ -208,7 +230,6 @@ export async function processMessageFiles(
       return { success: false, files: [], formattedContent: '', error: 'Invalid JSON content' };
     }
     
-    // 根据消息类型处理
     switch (message_type) {
       case 'image': {
         const fileInfo = await processImageMessage(deps, message, parsedContent);
@@ -224,8 +245,13 @@ export async function processMessageFiles(
         break;
       }
       
+      case 'post': {
+        const postFiles = await processPostMessage(deps, message, parsedContent);
+        files.push(...postFiles);
+        break;
+      }
+      
       default:
-        // 不支持的类型，返回空结果
         return { success: true, files: [], formattedContent: '' };
     }
     
