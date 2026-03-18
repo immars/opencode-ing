@@ -33,6 +33,12 @@ export interface RichTextContent {
   };
 }
 
+export interface DownloadedFile {
+  buffer: Buffer;
+  fileName?: string;
+  contentType?: string;
+}
+
 // ============================================================================
 // State & Cache
 // ============================================================================
@@ -326,6 +332,40 @@ export async function sendFileToChat(
   }
   
   return sendFileMessage(projectDir, chatId, uploadResult.fileKey);
+}
+
+/**
+ * 下载消息中的文件资源
+ * @param projectDir - 项目目录
+ * @param messageId - 消息 ID
+ * @param fileKey - 文件/图片的唯一标识
+ * @param type - 资源类型: 'image' 或 'file'
+ * @returns 文件 Buffer 或 null
+ */
+export async function downloadMessageFile(
+  projectDir: string,
+  messageId: string,
+  fileKey: string,
+  type: 'image' | 'file'
+): Promise<DownloadedFile | null> {
+  const result = await withLarkClient(projectDir, async (c) => {
+    const response = await c.im.messageResource.get({
+      path: {
+        message_id: messageId,
+        file_key: fileKey,
+      },
+      params: {
+        type: type,
+      },
+    });
+    
+    return {
+      buffer: response.data,
+      contentType: response.headers?.['content-type'],
+    };
+  }, `Failed to download file: ${fileKey}`);
+  
+  return result;
 }
 
 // ============================================================================
