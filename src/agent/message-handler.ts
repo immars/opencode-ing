@@ -2,6 +2,8 @@ import { addReaction, removeReaction, parseFeishuMessageContent } from '../feish
 import { getOrCreateChatSession } from '../memory/session.js';
 import { saveContact } from '../contacts.js';
 import { logger } from '../logger.js';
+import { processMessageFiles } from './file-handler.js';
+import { getTodayString, getNowString } from '../memory/utils.js';
 import { setChatSessionMapping, getSessionTracking } from './state.js';
 import { CUT_IN_COMMAND, handleCutInCommand } from './commands.js';
 import { handleQueueMessage, processMessageDirectly } from './queue.js';
@@ -20,10 +22,32 @@ export async function handleFeishuMessage(
   const chatId = msg.message?.chat_id;
   const chatType = msg.message?.chat_type;
   const messageId = msg.message?.message_id;
+  const msgType = msg.message?.message_type;
   const rawContent = msg.message?.content || '';
   const senderId = msg.sender?.sender_id?.open_id;
   const senderName = msg.sender?.sender?.tenant_key;
-  const textContent = parseFeishuMessageContent(rawContent);
+
+  // 处理文件类型消息
+  let textContent = '';
+
+  if (['image', 'file', 'audio', 'media'].includes(msgType)) {
+    // 文件消息：下载文件并格式化
+    const fileResult = await processMessageFiles(deps, {
+      message_id: messageId || '',
+      message_type: msgType,
+      content: rawContent,
+      chat_id: chatId,
+    });
+
+    if (fileResult.success && fileResult.files.length > 0) {
+      textContent = fileResult.formattedContent;
+    } else if (!fileResult.success) {
+      logger.error('MessageHandler', 'File processing failed:', fileResult.error);
+    }
+  } else {
+    // 文本消息：解析文本内容
+    textContent = parseFeishuMessageContent(rawContent);
+  }
 
   if (!textContent || !chatId) return;
 
@@ -53,9 +77,8 @@ export async function handleFeishuMessage(
 
   setChatSessionMapping(chatId, sessionId);
 
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const timestamp = new Date().toISOString();
+  const todayStr = getTodayString();
+  const timestamp = getNowString();
 
   if (textContent === CUT_IN_COMMAND) {
     await handleCutInCommand(deps, chatId, sessionId, messageId);
