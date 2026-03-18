@@ -3,6 +3,7 @@ import { buildMemoryContext } from './memory.js';
 import { loadFeishuConfig } from './config.js';
 import { sendFileToChat } from './feishu.js';
 import { getChatIdFromSession } from './memory/session.js';
+import { getSessionFiles } from './memory/files.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -103,6 +104,37 @@ export function createTools(deps: ToolDeps): Record<string, ReturnType<typeof to
         }
         
         return `发送失败: ${result.error}`;
+      },
+    }),
+
+    'code-ing.list-files': tool({
+      description: '列出当前对话中接收到的所有文件',
+      args: {
+        chat_id: tool.schema.string().optional().describe('对话ID，默认为当前对话'),
+      },
+      async execute(args, context) {
+        let targetChatId: string | undefined = args.chat_id;
+        
+        if (!targetChatId && client && context.sessionID) {
+          const chatId = await getChatIdFromSession(client, context.sessionID);
+          targetChatId = chatId ?? undefined;
+        }
+        
+        if (!targetChatId) {
+          return '无法确定目标对话ID';
+        }
+        
+        const files = await getSessionFiles(directory, targetChatId);
+        
+        if (files.length === 0) {
+          return '当前对话中没有文件';
+        }
+        
+        const fileList = files.map((f, i) => 
+          `${i + 1}. [${f.type}] ${f.original_name}\n   路径: ${f.local_path}\n   大小: ${f.size} bytes`
+        ).join('\n\n');
+        
+        return `当前对话中的文件 (${files.length} 个):\n\n${fileList}`;
       },
     }),
   };
