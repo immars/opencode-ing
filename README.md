@@ -29,7 +29,7 @@ OpenCode-ing 是一个基于 `OpenCode` 平台的长期运行的自主 AI Agent 
 
 你需要安装好一个[opencode](https://opencode.ai/)。
 
-最好也安装上opencode的最佳搭档：[oh-my-opencode](https://github.com/code-yeongyu/oh-my-openagent)。
+最好也安装上opencode的最佳搭档：[oh-my-opencode](https://github.com/code-yeongyu/oh-my-openagent)。Agent 会默认使用oh-my-opencode所配置的子代理`multimodal-looker`来进行图片识别工作。
 
 请配置好opencode所使用的模型。这些模型也会被Opencode-ing Assistant Agent所使用。配置方法具体可以参考 [opencode 文档](https://opencode.ai/docs/models/)。
 
