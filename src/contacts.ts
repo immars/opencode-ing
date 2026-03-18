@@ -7,6 +7,7 @@ export interface Contact {
   chatId: string
   lastSeen: string
   type: 'group' | 'user'
+  name?: string
 }
 
 function getContactsPath(projectDir: string): string {
@@ -21,7 +22,6 @@ export function loadContacts(projectDir: string): Contact[] {
   try {
     const content = readFileSync(contactsPath, 'utf-8')
     const parsed = JSON.parse(content)
-    // Ensure we always return an array
     if (!Array.isArray(parsed)) {
       return []
     }
@@ -31,10 +31,16 @@ export function loadContacts(projectDir: string): Contact[] {
   }
 }
 
+export function findContact(projectDir: string, chatId: string): Contact | null {
+  const contacts = loadContacts(projectDir)
+  return contacts.find((c) => c.chatId === chatId) || null
+}
+
 export function saveContact(
   projectDir: string,
   chatId: string,
-  chatType: 'p2p' | 'group'
+  chatType: 'p2p' | 'group',
+  name?: string
 ): void {
   const contactsPath = getContactsPath(projectDir)
   const contactsDir = dirname(contactsPath)
@@ -42,10 +48,14 @@ export function saveContact(
   const contacts = loadContacts(projectDir)
 
   const existingIndex = contacts.findIndex((c) => c.chatId === chatId)
+  const existingContact = existingIndex >= 0 ? contacts[existingIndex] : null
+  
   const newContact: Contact = {
     chatId,
     lastSeen: new Date().toISOString(),
     type: chatType === 'group' ? 'group' : 'user',
+    // 保留已有名字，除非传入新名字
+    name: name || existingContact?.name,
   }
 
   if (existingIndex >= 0) {
