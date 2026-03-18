@@ -73,11 +73,8 @@ async function processImageMessage(
   const chatId = message.chat_id;
   
   if (!chatId) {
-    console.error('[FileHandler] No chat_id in image message');
     return null;
   }
-  
-  console.error(`[FileHandler] Downloading image: ${content.image_key}`);
   
   const downloadResult = await downloadMessageFile(
     directory,
@@ -87,11 +84,8 @@ async function processImageMessage(
   );
   
   if (!downloadResult || !downloadResult.buffer) {
-    console.error(`[FileHandler] Failed to download image: ${content.image_key}, result: ${JSON.stringify(downloadResult)}`);
     return null;
   }
-  
-  console.error(`[FileHandler] Image downloaded successfully, size: ${downloadResult.buffer.length} bytes`);
   
   let ext = 'jpg';
   if (downloadResult.contentType) {
@@ -133,7 +127,6 @@ async function processFileMessage(
   const chatId = message.chat_id;
   
   if (!chatId) {
-    console.error('[FileHandler] No chat_id in file message');
     return null;
   }
   
@@ -145,7 +138,6 @@ async function processFileMessage(
   );
   
   if (!downloadResult || !downloadResult.buffer) {
-    console.error(`[FileHandler] Failed to download file: ${content.file_key}`);
     return null;
   }
   
@@ -178,27 +170,17 @@ async function processPostMessage(
   content: any
 ): Promise<FileInfo[]> {
   const files: FileInfo[] = [];
-  if (!content) {
-    console.error('[FileHandler] processPostMessage: content is null');
+  if (!content || !Array.isArray(content.content)) {
     return files;
   }
-  if (!Array.isArray(content.content)) {
-    console.error('[FileHandler] processPostMessage: content.content is not array', typeof content.content);
-    return files;
-  }
-
-  console.error(`[FileHandler] processPostMessage: found ${content.content.length} paragraphs`);
 
   for (const paragraph of content.content) {
     if (!Array.isArray(paragraph)) continue;
     for (const element of paragraph) {
       if (element.tag === 'img' && element.image_key) {
-        console.error(`[FileHandler] Found image in post: ${element.image_key}`);
         const fileInfo = await processImageMessage(deps, message, { image_key: element.image_key });
         if (fileInfo) {
           files.push(fileInfo);
-        } else {
-          console.error(`[FileHandler] Failed to process image: ${element.image_key}`);
         }
       }
     }
@@ -256,7 +238,6 @@ export async function processMessageFiles(
     };
     
   } catch (e) {
-    console.error('[FileHandler] Error processing file message:', e);
     return {
       success: false,
       files,

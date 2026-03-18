@@ -368,10 +368,8 @@ export async function downloadMessageFile(
   fileKey: string,
   type: 'image' | 'file'
 ): Promise<DownloadedFile | null> {
-  console.error(`[Feishu] Downloading ${type}: ${fileKey}, message_id: ${messageId}`);
-  
   const result = await withLarkClient(projectDir, async (c) => {
-    const response = await c.im.messageResource.get({
+    const response: any = await c.im.messageResource.get({
       path: {
         message_id: messageId,
         file_key: fileKey,
@@ -381,12 +379,40 @@ export async function downloadMessageFile(
       },
     });
     
-    console.error(`[Feishu] Download response:`, JSON.stringify(response, null, 2));
+    if (!response) {
+      return null;
+    }
     
-    return {
-      buffer: response.data,
-      contentType: response.headers?.['content-type'],
-    };
+    if (Buffer.isBuffer(response)) {
+      return { buffer: response, contentType: undefined };
+    }
+    
+    if (response.data && Buffer.isBuffer(response.data)) {
+      return { buffer: response.data, contentType: response.headers?.['content-type'] };
+    }
+    
+    if (typeof response.writeFile === 'function') {
+      const tmpPath = `/tmp/feishu_download_${Date.now()}`;
+      await response.writeFile(tmpPath);
+      const buffer = await fs.readFile(tmpPath);
+      const contentType = response.headers?.['content-type'];
+      return { buffer, contentType };
+    }
+    
+    if (response.getReadableStream) {
+      const stream = response.getReadableStream();
+      const chunks: Buffer[] = [];
+      
+      for await (const chunk of stream) {
+        chunks.push(Buffer.from(chunk));
+      }
+      
+      const buffer = Buffer.concat(chunks);
+      const contentType = response.headers?.['content-type'];
+      return { buffer, contentType };
+    }
+    
+    return null;
   }, `Failed to download file: ${fileKey}`);
   
   return result;

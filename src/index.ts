@@ -10,14 +10,14 @@
 
 import type { Plugin, Hooks } from '@opencode-ai/plugin';
 import { loadFeishuConfig, getFeishuContext, formatContextAsPrompt } from './memory.js';
-import { readSoul, readCronSys } from './memory/levels.js';
+import { readSoul } from './memory/levels.js';
 import { SESSION_PREFIXES } from './memory/constants.js';
 import { getChatIdFromSession } from './memory/session.js';
 import { createFeishuClient, createWSClient, closeWSClient, checkConnection, sendMessage, getFeishuWSClient, setFeishuWSClient } from './feishu.js';
 import { handleFeishuMessage } from './agent/message-handler.js';
 import { createSessionEventHandler } from './agent/session-event-handler.js';
 import { createTools } from './tools.js';
-import { startSchedulerWithAgent, testTriggerAllCronSys } from './scheduler/index.js';
+import { startSchedulerWithAgent } from './scheduler/index.js';
 import { loadContacts } from './contacts.js';
 import { setLoggerClient, logger } from './logger.js';
 import { startStuckDetector } from './agent/stuck-detector.js';
@@ -57,14 +57,6 @@ export const codeIng: Plugin = async (ctx): Promise<Hooks> => {
 
   const stuckDetectorTimer = startStuckDetector({ client, directory });
   setStuckDetectorTimer(stuckDetectorTimer);
-
-  // 测试：10秒后触发一次 cron_sys 任务
-  setTimeout(() => {
-    logger.info('code-ing', 'Testing cron_sys trigger...');
-    testTriggerAllCronSys(directory, client, readCronSys).catch(err => {
-      logger.error('code-ing', 'Test cron_sys trigger failed', err);
-    });
-  }, 10000);
 
   const connectFeishu = async (): Promise<string> => {
     logger.info('code-ing', 'Connecting to Feishu...');
