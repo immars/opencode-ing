@@ -381,7 +381,7 @@ export async function downloadMessageFile(
       },
     });
     
-    console.error(`[Feishu] Download response: code=${response.code}, hasData=${!!response.data}`);
+    console.error(`[Feishu] Download response:`, JSON.stringify(response, null, 2));
     
     return {
       buffer: response.data,
