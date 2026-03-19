@@ -22,11 +22,16 @@ export function spawnAgent(
   args: string[],
   cwd: string
 ): ChildProcess {
-  return spawn(command, args, {
+  const child = spawn(command, args, {
     cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
     env: { ...process.env },
   });
+  
+  // Handle spawn failure (command not found etc.)
+  child.on('error', () => { /* error logged elsewhere */ });
+  
+  return child;
 }
 
 export function killProcess(pid: number, signal: NodeJS.Signals = 'SIGTERM'): boolean {

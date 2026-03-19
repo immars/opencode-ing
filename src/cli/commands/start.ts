@@ -50,11 +50,23 @@ export async function startCommand(targetPath: string, agentType: AgentType): Pr
   }
 
   console.log(`[Start] Spawning: ${command} ${args.join(' ')}`);
-  const childProcess = spawnAgent(command, args, absolutePath);
+  
+  let childProcess;
+  try {
+    childProcess = spawnAgent(command, args, absolutePath);
+  } catch (error) {
+    console.error(`[Start] Failed to spawn ${command}:`, error instanceof Error ? error.message : error);
+    throw new Error(`Failed to spawn ${agentType} agent: ${command} not found or not executable`);
+  }
 
-  if (!childProcess.pid) {
+  if (!childProcess || !childProcess.pid) {
     throw new Error('Failed to spawn agent process');
   }
+
+  // Handle spawn errors (e.g., command not found)
+  childProcess.on('error', (error) => {
+    console.error(`[Start] Agent process error: ${error.message}`);
+  });
 
   console.log(`[Start] Agent process spawned with PID: ${childProcess.pid}`);
 
