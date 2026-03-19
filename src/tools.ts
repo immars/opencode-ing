@@ -4,6 +4,7 @@ import { loadFeishuConfig } from './config.js';
 import { sendFileToChat } from './feishu.js';
 import { getChatIdFromSession } from './memory/session.js';
 import { getSessionFiles } from './memory/files.js';
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -11,6 +12,14 @@ export interface ToolDeps {
   directory: string;
   client: any;
   connectFeishu: () => Promise<string>;
+}
+
+function runCli(args: string[]): string {
+  const result = spawnSync('node', ['dist/cli/index.js', ...args], {
+    encoding: 'utf-8',
+    stdio: 'pipe',
+  });
+  return result.stdout || result.stderr || '';
 }
 
 export function createTools(deps: ToolDeps): Record<string, ReturnType<typeof tool>> {
@@ -135,6 +144,60 @@ export function createTools(deps: ToolDeps): Record<string, ReturnType<typeof to
         ).join('\n\n');
         
         return `当前对话中的文件 (${files.length} 个):\n\n${fileList}`;
+      },
+    }),
+
+    'coding-agent.start': tool({
+      description: '启动一个 coding agent（opencode 或 claude-code）',
+      args: {
+        path: tool.schema.string().describe('工作目录路径'),
+        type: tool.schema.string().describe('agent 类型: opencode 或 claude-code'),
+      },
+      async execute(args) {
+        return runCli(['start', args.path, '--type', args.type]);
+      },
+    }),
+
+    'coding-agent.stop': tool({
+      description: '停止指定路径的 coding agent',
+      args: {
+        path: tool.schema.string().describe('工作目录路径'),
+      },
+      async execute(args) {
+        return runCli(['stop', args.path]);
+      },
+    }),
+
+    'coding-agent.status': tool({
+      description: '查看 coding agent 状态',
+      args: {
+        path: tool.schema.string().optional().describe('工作目录路径（可选，不填则查看所有）'),
+      },
+      async execute(args) {
+        return runCli(['status', ...(args.path ? [args.path] : [])]);
+      },
+    }),
+
+    'coding-agent.list': tool({
+      description: '列出所有 running 的 coding agent',
+      args: {},
+      async execute() {
+        return runCli(['list']);
+      },
+    }),
+
+    'coding-agent.assign-task': tool({
+      description: '分派任务给 coding agent',
+      args: {
+        path: tool.schema.string().describe('工作目录路径'),
+        task: tool.schema.string().describe('任务内容（JSON 字符串）'),
+      },
+      async execute(args) {
+        const taskFile = `/tmp/coding-agent-task-${Date.now()}.json`;
+        await fs.writeFile(taskFile, args.task);
+        const result = runCli(['task', args.path, taskFile]);
+        try { await fs.unlink(taskFile); } catch { }
+        return result;
       },
     }),
   };
