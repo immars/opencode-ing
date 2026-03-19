@@ -251,3 +251,20 @@ export function listSessionL2Files(projectDir: string, chatId: string, extension
   }
   return files;
 }
+
+/**
+ * List session L0 files (date files like 2024-01-15.md)
+ * Returns files sorted in descending order (newest first)
+ */
+export function listSessionL0Files(projectDir: string, chatId: string, extension?: string): string[] {
+  const dir = getSessionL0Dir(projectDir, chatId);
+  if (!existsSync(dir)) {
+    return [];
+  }
+  
+  let files = readdirSync(dir);
+  if (extension) {
+    files = files.filter(f => f.endsWith(extension));
+  }
+  return files.sort().reverse();
+}

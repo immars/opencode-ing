@@ -23,7 +23,8 @@ import {
   listSessionL1Files,
   getSessionL2FilePath,
   ensureSessionL2Dir,
-  listSessionL2Files
+  listSessionL2Files,
+  listSessionL0Files
 } from './utils.js';
 import { getGlobalSoulPath, getSessionL9FilePath, getSessionDir, getGlobalDir, listAllSessions } from './paths.js';
 import type { MessageRecord, DailySummary, WeeklySummary } from './types.js';
@@ -151,10 +152,21 @@ export function readRecentMessages(
   projectDir: string,
   date: string,
   chatId: string,
-  count: number = DEFAULTS.L0_MAX_MESSAGES
+  minCount: number = DEFAULTS.L0_MAX_MESSAGES
 ): MessageRecord[] {
-  const filePath = getSessionL0FilePath(projectDir, chatId, date);
+  const todayMessages = readMessagesFromFile(projectDir, chatId, date);
+  
+  if (todayMessages.length >= minCount) {
+    return todayMessages;
+  }
+  
+  const neededFromHistory = minCount - todayMessages.length;
+  const historicalMessages = readHistoricalMessages(projectDir, chatId, date, neededFromHistory);
+  
+  return [...historicalMessages, ...todayMessages];
+}
 
+function parseMessagesFromFile(filePath: string): MessageRecord[] {
   if (!existsSync(filePath)) {
     return [];
   }
@@ -163,26 +175,53 @@ export function readRecentMessages(
   const lines = content.split('\n').filter((line) => line.trim().startsWith('- ['));
 
   const messages: MessageRecord[] = [];
-  const recentLines = lines.slice(-count);
-
-  for (const line of recentLines) {
+  for (const line of lines) {
     const match = line.match(/^- \[([^\]]+)\] (user|assistant): (.*)$/);
     if (match) {
-      const [, timestamp, role, content] = match;
+      const [, timestamp, role, msgContent] = match;
       messages.push({
         timestamp,
         role: role as 'user' | 'assistant',
-        content,
+        content: msgContent,
         source: 'feishu',
       });
     }
   }
-
   return messages;
 }
 
+function readMessagesFromFile(projectDir: string, chatId: string, date: string): MessageRecord[] {
+  const filePath = getSessionL0FilePath(projectDir, chatId, date);
+  return parseMessagesFromFile(filePath);
+}
+
+function readHistoricalMessages(
+  projectDir: string,
+  chatId: string,
+  todayDate: string,
+  neededCount: number
+): MessageRecord[] {
+  const allFiles = listSessionL0Files(projectDir, chatId, '.md');
+  const allHistorical: MessageRecord[] = [];
+
+  for (const file of allFiles) {
+    if (file === `${todayDate}.md`) continue;
+
+    const fileDate = file.replace('.md', '');
+    const chronologicalMessages = readMessagesFromFile(projectDir, chatId, fileDate);
+    const newestFromThisFile = chronologicalMessages.slice(-neededCount);
+    allHistorical.unshift(...newestFromThisFile);
+    
+    if (allHistorical.length >= neededCount) {
+      break;
+    }
+  }
+
+  return allHistorical.slice(-neededCount);
+}
+
 export function readAllMessages(projectDir: string, date: string, chatId: string): MessageRecord[] {
-  return readRecentMessages(projectDir, date, chatId, Infinity);
+  return readMessagesFromFile(projectDir, chatId, date);
 }
 
 // ============================================================================

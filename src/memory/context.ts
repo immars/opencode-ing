@@ -12,6 +12,7 @@ import {
   readTasks,
   readCron,
   readRecentMessages,
+  readAllMessages,
   readDailySummaries,
   readWeeklySummaries,
   getWeekStart
@@ -38,7 +39,7 @@ export interface VariableContext {
 
 export function getL0Content(projectDir: string, chatId: string): string {
   const today = getTodayString();
-  const messages = readRecentMessages(projectDir, today, chatId, 60);
+  const messages = readAllMessages(projectDir, today, chatId);
   
   if (messages.length === 0) {
     return '';
@@ -190,6 +191,58 @@ export function getScheduledContext(projectDir: string, chatId: string): MemoryC
   return buildMemoryContext(projectDir, 'scheduled', chatId);
 }
 
+/**
+ * Format CRON.md content for injection into chat session
+ * Removes schedule and author fields, adds execution prefix
+ */
+export function formatCronForInjection(cronContent: string): string {
+  if (!cronContent.trim()) {
+    return '';
+  }
+
+  const sections = cronContent.split(/^# /m);
+  const formattedTasks: string[] = [];
+
+  for (const section of sections) {
+    if (!section.trim()) continue;
+
+    const lines = section.split('\n');
+    const title = lines[0].trim();
+
+    let name = '';
+    let description = '';
+    let enabled = true;
+
+    for (let line of lines.slice(1)) {
+      let trimmed = line.trim();
+      if (trimmed.startsWith('* ')) {
+        trimmed = trimmed.substring(2);
+      }
+
+      if (trimmed.startsWith('name:')) {
+        name = trimmed.substring(5).trim();
+      } else if (trimmed.startsWith('description:') || trimmed.startsWith('descrption:')) {
+        description = trimmed.substring(12).trim();
+      } else if (trimmed.startsWith('enabled:')) {
+        enabled = trimmed.substring(8).trim().toLowerCase() === 'true';
+      }
+    }
+
+    if (name && enabled) {
+      formattedTasks.push(`### ${name || title}`);
+      if (description) {
+        formattedTasks.push(description);
+      }
+    }
+  }
+
+  if (formattedTasks.length === 0) {
+    return '';
+  }
+
+  return `现在执行以下任务：\n\n${formattedTasks.join('\n\n')}`;
+}
+
 export function formatContextAsPrompt(context: MemoryContext): string {
   const parts: string[] = [];
 
@@ -203,6 +256,13 @@ export function formatContextAsPrompt(context: MemoryContext): string {
 
   if (context.longTermMemory.tasks) {
     parts.push('## Current Tasks\n' + context.longTermMemory.tasks);
+  }
+
+  if (context.longTermMemory.cron) {
+    const formattedCron = formatCronForInjection(context.longTermMemory.cron);
+    if (formattedCron) {
+      parts.push(formattedCron);
+    }
   }
 
   if (context.weeklySummaries.length > 0) {
