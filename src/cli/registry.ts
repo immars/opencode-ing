@@ -42,7 +42,7 @@ function ensureRegistryDir(): void {
  * Acquire a simple file lock for concurrent write protection
  * Uses a spin-lock approach for simplicity
  */
-function acquireLock(timeout: number = 5000): boolean {
+export function acquireLock(timeout: number = 5000): boolean {
   const start = Date.now();
   while (existsSync(LOCK_PATH)) {
     if (Date.now() - start > timeout) {
@@ -65,7 +65,7 @@ function acquireLock(timeout: number = 5000): boolean {
 /**
  * Release the file lock
  */
-function releaseLock(): void {
+export function releaseLock(): void {
   try {
     if (existsSync(LOCK_PATH)) {
       // Only remove if we own the lock
