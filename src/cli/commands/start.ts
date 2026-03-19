@@ -87,7 +87,7 @@ export async function startCommand(targetPath: string, agentType: AgentType): Pr
   let sessionId: string;
   try {
     console.log('[Start] Creating new session...');
-    const sessionResponse = await client.sessionNew(absolutePath);
+    const sessionResponse = await client.sessionNew(absolutePath, []);
     sessionId = sessionResponse.sessionId;
     console.log(`[Start] Session created: ${sessionId}`);
   } catch (error) {
