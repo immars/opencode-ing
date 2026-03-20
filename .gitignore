@@ -31,5 +31,6 @@ Thumbs.db
 
 # code-ing runtime files
 .code-ing/*
+.code-ing
 
 .opencode/plugins/code-ing.js
