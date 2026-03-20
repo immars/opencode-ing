@@ -27,20 +27,9 @@ description: (project - Skill) 引导配置和启动 OpenCode-ing Agent。首次
 ├── TASK.md              # 任务记录
 ├── CRON.md              # 定时任务
 ├── CRON_SYS.md          # 系统定时任务表
-├── contacts.json        # 联系人数据
-├── L0/                  # Level 0 - 每日原始对话记录
-│   └── ...              
-├── L1/                  # Level 1 - 每日摘要
-│   └── ...              
-└── L2/                  # Level 2 - 周摘要
-    └── ...              
+└─── contacts.json       # 联系人数据
 
  ```
-层级说明：
-- L0: 原始对话日志（详细记录）
-- L1: 每日摘要（压缩版）
-- L2: 周摘要（更高层抽象）
-
 
 - 上述各项目录，如果没有则创建
 
@@ -74,8 +63,8 @@ description: (project - Skill) 引导配置和启动 OpenCode-ing Agent。首次
 ### 3. 编译
 
 1. 进到 `.opencode/` 目录，安装依赖。
-2. 进到 `.opencode/plugins/code-ing/` 目录，进行编译。
-3. 进到 `.opencode/plugins/` 目录，建立符号链接：`ln -s code-ing/dist/index.js code-ing.js`
+2. 进到项目目录，进行编译。
+3. 进到 `.opencode/plugins/` 目录，建立符号链接：`ln -s ../../dist/index.js code-ing.js`
 
 # 完成
 
