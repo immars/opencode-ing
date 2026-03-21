@@ -4,14 +4,16 @@
  * Manages persistent registry of active agents with file-based storage.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, renameSync, existsSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
+import { listCodeIngSessions } from './process.js';
 
 export interface AgentInfo {
   type: 'opencode' | 'claude-code';
   path: string;
-  pid: number;
+  pid: number | null;
   sessionId: string;
+  tmuxSession: string;
   startedAt: string;
   status: 'running' | 'stopped' | 'error';
 }
@@ -68,10 +70,8 @@ export function acquireLock(timeout: number = 5000): boolean {
 export function releaseLock(): void {
   try {
     if (existsSync(LOCK_PATH)) {
-      // Only remove if we own the lock
       const lockContent = readFileSync(LOCK_PATH, 'utf-8');
       if (lockContent === String(process.pid)) {
-        const { unlinkSync } = require('node:fs');
         unlinkSync(LOCK_PATH);
       }
     }
@@ -186,4 +186,35 @@ export function listAgents(
     }
     return true;
   });
+}
+
+/**
+ * Sync registry with current tmux state
+ * Removes agents from registry if their tmux session no longer exists
+ * (e.g., tmux was restarted or sessions were manually killed)
+ */
+export function syncWithTmux(): { removed: string[]; kept: string[] } {
+  const registry = loadRegistry();
+  const activeTmuxSessions = listCodeIngSessions();
+  const activeSet = new Set(activeTmuxSessions);
+
+  const removed: string[] = [];
+  const kept: string[] = [];
+
+  for (const [sessionId, agent] of Object.entries(registry.agents)) {
+    const tmuxSession = agent.tmuxSession;
+    if (tmuxSession && !activeSet.has(tmuxSession)) {
+      delete registry.agents[sessionId];
+      removed.push(sessionId);
+    } else {
+      kept.push(sessionId);
+    }
+  }
+
+  if (removed.length > 0) {
+    cachedRegistry = registry;
+    saveRegistry();
+  }
+
+  return { removed, kept };
 }

@@ -9,6 +9,7 @@ import { stopCommand } from './commands/stop.js';
 import { statusCommand } from './commands/status.js';
 import { listCommand } from './commands/list.js';
 import { taskCommand } from './commands/task.js';
+import { chatCommand } from './commands/chat.js';
 
 const VERSION = '1.0.0';
 
@@ -18,11 +19,12 @@ function printHelp(): void {
   console.log('Usage:');
   console.log(`  coding-agent-cli --help                     Show this help message`);
   console.log(`  coding-agent-cli --version                  Show version`);
-  console.log(`  coding-agent-cli start <path> --type <opencode|claude-code>  Start agent`);
-  console.log(`  coding-agent-cli stop <path>               Stop agent`);
+  console.log(`  coding-agent-cli start <path> --type <type> Start agent (type: opencode|claude-code)`);
+  console.log(`  coding-agent-cli stop <path>                Stop agent`);
   console.log(`  coding-agent-cli status [path]              Check status`);
-  console.log(`  coding-agent-cli list                      List all agents`);
-  console.log(`  coding-agent-cli task <path> <task-file>    Run task`);
+  console.log(`  coding-agent-cli list                       List all agents`);
+  console.log(`  coding-agent-cli task <path> <task-file>    Run task from JSON file`);
+  console.log(`  coding-agent-cli chat <path> <message>      Send message to agent`);
 }
 
 function printVersion(): void {
@@ -159,6 +161,31 @@ export async function main(argv: string[] = process.argv): Promise<number> {
       }
     }
 
+    case 'chat': {
+      const targetPath = args._[0];
+      const message = args._[1];
+
+      if (!targetPath) {
+        console.error('[CLI] Error: <path> is required');
+        console.error('Usage: coding-agent-cli chat <path> <message>');
+        return 1;
+      }
+
+      if (!message) {
+        console.error('[CLI] Error: <message> is required');
+        console.error('Usage: coding-agent-cli chat <path> <message>');
+        return 1;
+      }
+
+      try {
+        await chatCommand(targetPath, message);
+        return 0;
+      } catch (error) {
+        console.error('[CLI] Failed to send message:', error);
+        return 1;
+      }
+    }
+
     case '':
       printHelp();
       return 0;
@@ -171,4 +198,6 @@ export async function main(argv: string[] = process.argv): Promise<number> {
   }
 }
 
-main(process.argv);
+main(process.argv).then((code) => {
+  process.exit(code);
+});

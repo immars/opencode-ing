@@ -6,7 +6,7 @@
 
 import path from 'node:path';
 import { parseTaskFile, writeTaskResult, type TaskFile, type TaskResult } from '../task-file.js';
-import { listAgents, type AgentInfo } from '../registry.js';
+import { listAgents, syncWithTmux, type AgentInfo } from '../registry.js';
 import { ACPClient } from '../acp/client.js';
 import type { ContentBlock } from '../acp/types.js';
 
@@ -61,6 +61,7 @@ function buildPrompt(task: TaskFile): ContentBlock[] {
  * Task command - sends a task to a running agent
  */
 export async function taskCommand(targetPath: string, taskFilePath: string): Promise<void> {
+  syncWithTmux();
   const absolutePath = path.resolve(targetPath);
   const absoluteTaskFilePath = path.resolve(taskFilePath);
 
@@ -84,7 +85,7 @@ export async function taskCommand(targetPath: string, taskFilePath: string): Pro
     throw new Error(`No agent running at ${absolutePath}`);
   }
 
-  console.log(`[Task] Found agent: ${agent.type} (session: ${agent.sessionId}, pid: ${agent.pid})`);
+  console.log(`[Task] Found agent: ${agent.type} (session: ${agent.sessionId}, tmux: ${agent.tmuxSession})`);
 
   // 3. Create ACP client to communicate with agent
   // Note: We need to create a new client that connects to the same agent
@@ -117,12 +118,10 @@ export async function taskCommand(targetPath: string, taskFilePath: string): Pro
     // 5. Set up session update handler to collect response chunks
     const responseChunks: string[] = [];
     client.onSessionUpdate((update) => {
-      // Handle agent message chunks
-      if ('sessionUpdate' in update.update) {
-        const sessionUpdate = update.update.sessionUpdate;
-        if (sessionUpdate === 'agent_message_chunk') {
-          // This is where agent response chunks would come
-          // The actual content block would be in update.update
+      if (update.update.sessionUpdate === 'agent_message_chunk') {
+        const content = update.update.content;
+        if (content.type === 'text' && content.text) {
+          responseChunks.push(content.text);
         }
       }
     });

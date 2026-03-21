@@ -13,6 +13,8 @@ import type {
   InitializeResponse,
   NewSessionRequest,
   NewSessionResponse,
+  LoadSessionRequest,
+  LoadSessionResponse,
   PromptRequest,
   PromptResponse,
   JSONRPCRequest,
@@ -213,6 +215,19 @@ export class ACPClient {
     };
 
     return this.sendRequest<NewSessionResponse>('session/new', request);
+  }
+
+  /**
+   * Load an existing session
+   */
+  async sessionLoad(sessionId: string, cwd: string, mcpServers?: McpServer[]): Promise<LoadSessionResponse> {
+    const request: LoadSessionRequest = {
+      sessionId,
+      cwd,
+      mcpServers,
+    };
+
+    return this.sendRequest<LoadSessionResponse>('session/load', request);
   }
 
   /**

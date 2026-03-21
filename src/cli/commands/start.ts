@@ -1,13 +1,7 @@
-/**
- * Start Command
- *
- * Starts an external coding agent with ACP protocol support.
- */
-
 import path from 'node:path';
-import { spawnAgent } from '../process.js';
+import { spawnAgent, getSessionPid, type SpawnResult } from '../process.js';
 import { ACPClient } from '../acp/client.js';
-import { registerAgent, listAgents } from '../registry.js';
+import { registerAgent, listAgents, syncWithTmux } from '../registry.js';
 import type { AgentInfo } from '../registry.js';
 
 export type AgentType = 'opencode' | 'claude-code';
@@ -17,25 +11,21 @@ export interface StartCommandOptions {
   agentType: AgentType;
 }
 
-/**
- * Start an agent at the specified path
- */
 export async function startCommand(targetPath: string, agentType: AgentType): Promise<void> {
-  // 1. Resolve absolute path
+  syncWithTmux();
   const absolutePath = path.resolve(targetPath);
   console.log(`[Start] Starting ${agentType} agent at: ${absolutePath}`);
 
-  // 2. Check if agent already running at this path
   const existingAgents = listAgents({ status: 'running' });
   const duplicateAgent = existingAgents.find((agent: AgentInfo) => agent.path === absolutePath);
 
   if (duplicateAgent) {
-    console.error(`[Start] Agent already running at ${absolutePath}`);
-    console.error(`[Start] Session ID: ${duplicateAgent.sessionId}, PID: ${duplicateAgent.pid}`);
-    throw new Error(`Agent already running at ${absolutePath}`);
+    console.log(`[Start] Agent already registered at ${absolutePath}`);
+    console.log(`[Start] tmux session: ${duplicateAgent.tmuxSession}`);
+    console.log(`[Start] To attach: tmux attach -t ${duplicateAgent.tmuxSession}`);
+    return;
   }
 
-  // 3. Spawn the agent process
   let command: string;
   let args: string[];
 
@@ -50,27 +40,24 @@ export async function startCommand(targetPath: string, agentType: AgentType): Pr
   }
 
   console.log(`[Start] Spawning: ${command} ${args.join(' ')}`);
-  
-  let childProcess;
-  try {
-    childProcess = spawnAgent(command, args, absolutePath);
-  } catch (error) {
-    console.error(`[Start] Failed to spawn ${command}:`, error instanceof Error ? error.message : error);
-    throw new Error(`Failed to spawn ${agentType} agent: ${command} not found or not executable`);
+
+  const spawnResult = spawnAgent(command, args, absolutePath);
+  if (!spawnResult) {
+    throw new Error(`Failed to spawn ${agentType} agent in tmux session`);
   }
 
-  if (!childProcess || !childProcess.pid) {
-    throw new Error('Failed to spawn agent process');
+  const { sessionName: tmuxSession, isNew } = spawnResult;
+
+  if (!isNew) {
+    console.log(`[Start] Reusing existing tmux session: ${tmuxSession}`);
+    console.log(`[Start] To attach: tmux attach -t ${tmuxSession}`);
+    return;
   }
 
-  // Handle spawn errors (e.g., command not found)
-  childProcess.on('error', (error) => {
-    console.error(`[Start] Agent process error: ${error.message}`);
-  });
+  console.log(`[Start] Agent running in tmux session: ${tmuxSession}`);
 
-  console.log(`[Start] Agent process spawned with PID: ${childProcess.pid}`);
+  const pid = getSessionPid(tmuxSession);
 
-  // 4. Create ACPClient and initialize
   const client = new ACPClient(command, args);
 
   try {
@@ -79,11 +66,9 @@ export async function startCommand(targetPath: string, agentType: AgentType): Pr
     console.log('[Start] ACP connection initialized');
   } catch (error) {
     console.error('[Start] Failed to initialize ACP connection:', error);
-    childProcess.kill();
     throw new Error('ACP initialization failed');
   }
 
-  // 5. Create new session
   let sessionId: string;
   try {
     console.log('[Start] Creating new session...');
@@ -93,16 +78,15 @@ export async function startCommand(targetPath: string, agentType: AgentType): Pr
   } catch (error) {
     console.error('[Start] Failed to create session:', error);
     client.close();
-    childProcess.kill();
     throw new Error('Session creation failed');
   }
 
-  // 6. Register agent in registry
   const agentInfo: AgentInfo = {
     type: agentType,
     path: absolutePath,
-    pid: childProcess.pid,
+    pid: pid,
     sessionId,
+    tmuxSession,
     startedAt: new Date().toISOString(),
     status: 'running',
   };
@@ -112,20 +96,19 @@ export async function startCommand(targetPath: string, agentType: AgentType): Pr
     console.error('[Start] Warning: Failed to register agent in registry');
   }
 
-  // 7. Output success message
   console.log('');
   console.log('========================================');
   console.log('Agent started successfully!');
   console.log('========================================');
   console.log(`Session ID: ${sessionId}`);
-  console.log(`PID: ${childProcess.pid}`);
+  console.log(`tmux Session: ${tmuxSession}`);
+  console.log(`PID: ${pid ?? 'N/A'}`);
   console.log(`Type: ${agentType}`);
   console.log(`Working Directory: ${absolutePath}`);
+  console.log('');
+  console.log('To attach: tmux attach -t ' + tmuxSession);
   console.log('========================================');
   console.log('');
 }
 
-/**
- * Export for use in CLI entry point
- */
 export default startCommand;

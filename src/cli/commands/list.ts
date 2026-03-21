@@ -1,30 +1,19 @@
-/**
- * List Command
- *
- * Lists all registered agents with their status and uptime.
- */
-
-import { listAgents } from '../registry.js';
-import { isProcessRunning } from '../process.js';
+import { listAgents, syncWithTmux } from '../registry.js';
+import { isSessionRunning, getSessionPid } from '../process.js';
 import type { AgentInfo } from '../registry.js';
 
 interface AgentWithLiveStatus extends AgentInfo {
   isAlive: boolean;
   uptime: number;
+  livePid: number | null;
 }
 
-/**
- * Calculate uptime in seconds from startedAt ISO string
- */
 function calculateUptime(startedAt: string): number {
   const startTime = new Date(startedAt).getTime();
   const now = Date.now();
   return Math.floor((now - startTime) / 1000);
 }
 
-/**
- * Format uptime as human-readable string
- */
 function formatUptime(seconds: number): string {
   if (seconds < 60) {
     return `${seconds}s`;
@@ -39,27 +28,24 @@ function formatUptime(seconds: number): string {
   return `${hours}h ${mins}m`;
 }
 
-/**
- * Get live status for all agents
- */
 function getAgentsWithLiveStatus(): AgentWithLiveStatus[] {
   const agents = listAgents();
 
   return agents.map((agent: AgentInfo) => {
-    const isAlive = isProcessRunning(agent.pid);
+    const tmuxSession = agent.tmuxSession || '';
+    const isAlive = tmuxSession ? isSessionRunning(tmuxSession) : false;
     const uptime = calculateUptime(agent.startedAt);
+    const livePid = tmuxSession ? getSessionPid(tmuxSession) : null;
 
     return {
       ...agent,
       isAlive,
       uptime,
+      livePid,
     };
   });
 }
 
-/**
- * Format status for display
- */
 function formatStatus(agent: AgentWithLiveStatus): string {
   if (!agent.isAlive && agent.status === 'running') {
     return 'zombie';
@@ -67,10 +53,8 @@ function formatStatus(agent: AgentWithLiveStatus): string {
   return agent.status;
 }
 
-/**
- * List all agents in a table format
- */
 export async function listCommand(): Promise<void> {
+  syncWithTmux();
   const agents = getAgentsWithLiveStatus();
 
   if (agents.length === 0) {
@@ -78,18 +62,18 @@ export async function listCommand(): Promise<void> {
     return;
   }
 
-  // Calculate column widths
   const pathWidth = Math.max(40, ...agents.map((a) => a.path.length));
   const typeWidth = 12;
   const pidWidth = 8;
+  const tmuxWidth = 20;
   const statusWidth = 10;
   const uptimeWidth = 10;
 
-  // Print header
   const header = [
     'Path'.padEnd(pathWidth),
     'Type'.padEnd(typeWidth),
     'PID'.padEnd(pidWidth),
+    'tmux'.padEnd(tmuxWidth),
     'Status'.padEnd(statusWidth),
     'Uptime'.padEnd(uptimeWidth),
   ].join('  ');
@@ -97,12 +81,12 @@ export async function listCommand(): Promise<void> {
   console.log(header);
   console.log('-'.repeat(header.length));
 
-  // Print each agent
   for (const agent of agents) {
     const row = [
       agent.path.slice(0, pathWidth).padEnd(pathWidth),
       agent.type.padEnd(typeWidth),
-      String(agent.pid).padEnd(pidWidth),
+      String(agent.livePid ?? 'N/A').padEnd(pidWidth),
+      (agent.tmuxSession || 'N/A').slice(0, tmuxWidth).padEnd(tmuxWidth),
       formatStatus(agent).padEnd(statusWidth),
       formatUptime(agent.uptime).padEnd(uptimeWidth),
     ].join('  ');

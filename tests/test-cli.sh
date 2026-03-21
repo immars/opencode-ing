@@ -6,15 +6,16 @@ FAIL=0
 
 echo "=== coding-agent-cli Full Lifecycle Test ==="
 
+# 创建测试目录
+TEST_DIR="/tmp/coding-agent-test-$$"
+mkdir -p "$TEST_DIR"
+
 # 清理环境
 cleanup() {
     rm -rf .code-ing/agents/registry.json 2>/dev/null
     rm -rf "$TEST_DIR"
 }
-
-# 创建测试目录
-TEST_DIR="/tmp/coding-agent-test-$$
-mkdir -p "$TEST_DIR"
+trap cleanup EXIT
 
 echo ""
 echo "=== Test 1: Help ==="
@@ -37,70 +38,63 @@ coding-agent-cli list
 
 echo ""
 
-echo "=== Test 5: Stop(不存在) ==="
-coding-agent-cli stop /nonexistent/path
-
-if [ $? -ne 0 ]; then
-    echo "Pass"
-    PASS=$((PASS++))
+echo "=== Test 5: Stop(不存在) - should return error ==="
+if coding-agent-cli stop /nonexistent/path 2>&1; then
+    echo "Fail - should have returned error"
+    FAIL=$((FAIL+1))
 else
-    echo "Fail"
-    FAIL=$((FAIL++))
+    echo "Pass - returned error as expected"
+    PASS=$((PASS+1))
 fi
 
 echo ""
 echo "=== Test 6: Start - 缺少 path ==="
-coding-agent-cli start
-if [ $? -ne 0 ]; then
-    echo "Pass"
-    PASS=$((PASS++))
+if coding-agent-cli start 2>&1; then
+    echo "Fail - should have returned error"
+    FAIL=$((FAIL+1))
 else
-    echo "Fail"
-    FAIL=$((FAIL++))
+    echo "Pass - returned error as expected"
+    PASS=$((PASS+1))
 fi
 
 echo ""
 echo "=== Test 7: Start - 缺少 type ==="
-coding-agent-cli start /tmp
-if [ $? -ne 0 ]; then
-    echo "Pass"
-    PASS=$((PASS++))
+if coding-agent-cli start /tmp 2>&1; then
+    echo "Fail - should have returned error"
+    FAIL=$((FAIL+1))
 else
-    echo "Fail"
-    FAIL=$((FAIL++))
+    echo "Pass - returned error as expected"
+    PASS=$((PASS+1))
 fi
 
 echo ""
 echo "=== Test 8: Start - 无效 type ==="
-coding-agent-cli start /tmp --type invalid
-if [ $? -ne 0 ]; then
-    echo "Pass"
-    PASS=$((PASS++))
+if coding-agent-cli start /tmp --type invalid 2>&1; then
+    echo "Fail - should have returned error"
+    FAIL=$((FAIL+1))
 else
-    echo "Fail"
-    FAIL=$((FAIL++))
+    echo "Pass - returned error as expected"
+    PASS=$((PASS+1))
 fi
 
 echo ""
 echo "=== Test 9: Task - 缺少参数 ==="
-coding-agent-cli task
-if [ $? -ne 0 ]; then
-    echo "Pass"
-    PASS=$((PASS++))
+if coding-agent-cli task 2>&1; then
+    echo "Fail - should have returned error"
+    FAIL=$((FAIL+1))
 else
-    echo "Fail"
-    FAIL=$((FAIL++))
+    echo "Pass - returned error as expected"
+    PASS=$((PASS+1))
 fi
 
 echo ""
 echo "=== Test 10: 未知命令 ==="
-coding-agent-cli unknown
-if [ $? -ne 0 ]; then
-    echo "Pass"
-    PASS=$((PASS++))
+if coding-agent-cli unknown 2>&1; then
+    echo "Fail - should have returned error"
+    FAIL=$((FAIL+1))
 else
-    echo "Fail"
-    FAIL=$((FAIL++))
+    echo "Pass - returned error as expected"
+    PASS=$((PASS+1))
 fi
 
 echo ""
@@ -114,60 +108,4 @@ if [ $FAIL -eq 0 ]; then
 else
     echo "Some tests failed!"
     exit 1
-fi
-
-echo ""
-echo "=== Test 7: Start - 缺少 type ==="
-coding-agent-cli start /tmp
-if [ $? -ne 0 ]; then
-    echo "Pass"
-    PASS=$((PASS++))
-else
-    echo "Fail"
-    FAIL=$((FAIL++))
-fi
-
-echo ""
-echo "=== Test 8: Start - 无效 type ==="
-coding-agent-cli start /tmp --type invalid
-if [ $? -ne 0 ]; then
-    echo "Pass"
-    PASS=$((PASS++))
-else
-    echo "Fail"
-    FAIL=$((FAIL++))
-fi
-echo ""
-echo "=== Test 9: Task - 缺少参数 ==="
-coding-agent-cli task
-if [ $? -ne 0 ]; then
-    echo "Pass"
-    PASS=$((PASS++))
-else
-    echo "Fail"
-    FAIL=$((FAIL++))
-fi
-echo ""
-echo "=== Test 10: 未知命令 ==="
-coding-agent-cli unknown
-if [ $? -ne 0 ]; then
-    echo "Pass"
-    PASS=$((PASS++))
-else
-    echo "Fail"
-    FAIL=$((FAIL++))
-fi
-
-echo ""
-echo "=== Test Results ==="
-echo "PASS: $PASS"
-echo "Fail: $FAIL"
-
-echo ""
-if [ $FAIL -eq 0 ]; then
-    echo "Some tests failed!"
-    exit 1
-else
-    echo "All tests passed!"
-    exit 0
 fi
