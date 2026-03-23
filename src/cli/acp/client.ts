@@ -134,16 +134,12 @@ export class ACPClient {
   private handleNotification(notification: JSONRPCNotification): void {
     const method = notification.method;
 
-    // Handle session update notifications
-    if (method === 'notifications/session_update' && notification.params) {
+    if ((method === 'notifications/session_update' || method === 'session/update') && notification.params) {
       const update = notification.params as unknown as SessionUpdateNotification;
       if (this.sessionUpdateHandler) {
         this.sessionUpdateHandler(update);
       }
-    }
-    // Handle other notifications as needed
-    else if (method === 'notifications/cancelled') {
-      // Session was cancelled
+    } else if (method === 'notifications/cancelled' || method === 'session/cancelled') {
       const cancel = notification.params as unknown as CancelNotification;
       console.log('[ACPClient] Session cancelled:', cancel.sessionId);
     }

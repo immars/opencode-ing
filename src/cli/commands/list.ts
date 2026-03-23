@@ -1,14 +1,7 @@
-import { listAgents, syncWithTmux } from '../registry.js';
-import { isSessionRunning, getSessionPid } from '../process.js';
-import type { AgentInfo } from '../registry.js';
+import { listAllAgents, type AgentSessionInfo } from '../process.js';
 
-interface AgentWithLiveStatus extends AgentInfo {
-  isAlive: boolean;
-  uptime: number;
-  livePid: number | null;
-}
-
-function calculateUptime(startedAt: string): number {
+function calculateUptime(startedAt: string | null): number {
+  if (!startedAt) return 0;
   const startTime = new Date(startedAt).getTime();
   const now = Date.now();
   return Math.floor((now - startTime) / 1000);
@@ -28,45 +21,18 @@ function formatUptime(seconds: number): string {
   return `${hours}h ${mins}m`;
 }
 
-function getAgentsWithLiveStatus(): AgentWithLiveStatus[] {
-  const agents = listAgents();
-
-  return agents.map((agent: AgentInfo) => {
-    const tmuxSession = agent.tmuxSession || '';
-    const isAlive = tmuxSession ? isSessionRunning(tmuxSession) : false;
-    const uptime = calculateUptime(agent.startedAt);
-    const livePid = tmuxSession ? getSessionPid(tmuxSession) : null;
-
-    return {
-      ...agent,
-      isAlive,
-      uptime,
-      livePid,
-    };
-  });
-}
-
-function formatStatus(agent: AgentWithLiveStatus): string {
-  if (!agent.isAlive && agent.status === 'running') {
-    return 'zombie';
-  }
-  return agent.status;
-}
-
 export async function listCommand(): Promise<void> {
-  syncWithTmux();
-  const agents = getAgentsWithLiveStatus();
+  const agents = listAllAgents();
 
   if (agents.length === 0) {
-    console.log('No agents registered.');
+    console.log('No agents running.');
     return;
   }
 
   const pathWidth = Math.max(40, ...agents.map((a) => a.path.length));
   const typeWidth = 12;
   const pidWidth = 8;
-  const tmuxWidth = 20;
-  const statusWidth = 10;
+  const tmuxWidth = 50;
   const uptimeWidth = 10;
 
   const header = [
@@ -74,7 +40,6 @@ export async function listCommand(): Promise<void> {
     'Type'.padEnd(typeWidth),
     'PID'.padEnd(pidWidth),
     'tmux'.padEnd(tmuxWidth),
-    'Status'.padEnd(statusWidth),
     'Uptime'.padEnd(uptimeWidth),
   ].join('  ');
 
@@ -82,13 +47,13 @@ export async function listCommand(): Promise<void> {
   console.log('-'.repeat(header.length));
 
   for (const agent of agents) {
+    const uptime = calculateUptime(agent.startedAt);
     const row = [
       agent.path.slice(0, pathWidth).padEnd(pathWidth),
       agent.type.padEnd(typeWidth),
-      String(agent.livePid ?? 'N/A').padEnd(pidWidth),
-      (agent.tmuxSession || 'N/A').slice(0, tmuxWidth).padEnd(tmuxWidth),
-      formatStatus(agent).padEnd(statusWidth),
-      formatUptime(agent.uptime).padEnd(uptimeWidth),
+      String(agent.pid ?? 'N/A').padEnd(pidWidth),
+      agent.tmuxSession.slice(0, tmuxWidth).padEnd(tmuxWidth),
+      formatUptime(uptime).padEnd(uptimeWidth),
     ].join('  ');
     console.log(row);
   }

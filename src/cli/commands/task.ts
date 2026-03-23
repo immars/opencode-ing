@@ -1,33 +1,21 @@
-/**
- * Task Command
- *
- * Sends a task to a running agent via ACP protocol.
- */
-
 import path from 'node:path';
 import { parseTaskFile, writeTaskResult, type TaskFile, type TaskResult } from '../task-file.js';
-import { listAgents, syncWithTmux, type AgentInfo } from '../registry.js';
-import { ACPClient } from '../acp/client.js';
-import type { ContentBlock } from '../acp/types.js';
+import { getAgentByPath, type AgentSessionInfo } from '../process.js';
+import { TmuxACPClient } from '../acp/tmux-client.js';
 
 export interface TaskCommandOptions {
   targetPath: string;
   taskFilePath: string;
 }
 
-/**
- * Build prompt ContentBlock[] from task file
- */
-function buildPrompt(task: TaskFile): ContentBlock[] {
-  const blocks: ContentBlock[] = [];
+function buildPrompt(task: TaskFile): { type: string; text: string }[] {
+  const blocks: { type: string; text: string }[] = [];
 
-  // Add description as text block
   blocks.push({
     type: 'text',
     text: `Task: ${task.description}`,
   });
 
-  // Add requirements as numbered list
   if (task.requirements.length > 0) {
     const requirementsText = task.requirements
       .map((req, i) => `${i + 1}. ${req}`)
@@ -38,7 +26,6 @@ function buildPrompt(task: TaskFile): ContentBlock[] {
     });
   }
 
-  // Add context instructions if present
   if (task.context.instructions) {
     blocks.push({
       type: 'text',
@@ -46,7 +33,6 @@ function buildPrompt(task: TaskFile): ContentBlock[] {
     });
   }
 
-  // Add file references if present
   if (task.context.files && task.context.files.length > 0) {
     blocks.push({
       type: 'text',
@@ -57,18 +43,13 @@ function buildPrompt(task: TaskFile): ContentBlock[] {
   return blocks;
 }
 
-/**
- * Task command - sends a task to a running agent
- */
 export async function taskCommand(targetPath: string, taskFilePath: string): Promise<void> {
-  syncWithTmux();
   const absolutePath = path.resolve(targetPath);
   const absoluteTaskFilePath = path.resolve(taskFilePath);
 
   console.log(`[Task] Sending task from: ${absoluteTaskFilePath}`);
   console.log(`[Task] Target agent path: ${absolutePath}`);
 
-  // 1. Parse the task file
   const task = parseTaskFile(absoluteTaskFilePath);
   if (!task) {
     throw new Error(`Failed to parse task file: ${absoluteTaskFilePath}`);
@@ -77,65 +58,46 @@ export async function taskCommand(targetPath: string, taskFilePath: string): Pro
   console.log(`[Task] Loaded task: ${task.taskId}`);
   console.log(`[Task] Description: ${task.description}`);
 
-  // 2. Find agent running at targetPath
-  const agents = listAgents({ status: 'running' });
-  const agent = agents.find((a: AgentInfo) => a.path === absolutePath);
+  const agent = getAgentByPath(absolutePath);
 
   if (!agent) {
     throw new Error(`No agent running at ${absolutePath}`);
   }
 
-  console.log(`[Task] Found agent: ${agent.type} (session: ${agent.sessionId}, tmux: ${agent.tmuxSession})`);
+  console.log(`[Task] Found agent: ${agent.type} (tmux: ${agent.tmuxSession})`);
 
-  // 3. Create ACP client to communicate with agent
-  // Note: We need to create a new client that connects to the same agent
-  // The agent type determines how we connect
-  let command: string;
-  let args: string[];
-
-  if (agent.type === 'opencode') {
-    command = 'opencode';
-    args = ['acp'];
-  } else if (agent.type === 'claude-code') {
-    command = 'claude';
-    args = ['code', '--agent'];
-  } else {
-    throw new Error(`Unknown agent type: ${agent.type}`);
-  }
-
-  const client = new ACPClient(command, args);
+  const client = new TmuxACPClient(agent.tmuxSession, agent.type);
 
   try {
-    // Initialize connection
     console.log('[Task] Initializing ACP connection...');
     await client.initialize();
     console.log('[Task] ACP connection initialized');
 
-    // 4. Build prompt from task content
+    console.log('[Task] Creating new session...');
+    const sessionResponse = await client.sessionNew(absolutePath);
+    console.log('[Task] Session created:', sessionResponse.sessionId);
+
     const promptBlocks = buildPrompt(task);
     console.log(`[Task] Built prompt with ${promptBlocks.length} content blocks`);
 
-    // 5. Set up session update handler to collect response chunks
     const responseChunks: string[] = [];
-    client.onSessionUpdate((update) => {
-      if (update.update.sessionUpdate === 'agent_message_chunk') {
-        const content = update.update.content;
-        if (content.type === 'text' && content.text) {
+    client.onSessionUpdate((update: unknown) => {
+      const u = update as { method?: string; params?: { update?: { sessionUpdate?: string; content?: { type?: string; text?: string } } } };
+      if (u.params?.update?.sessionUpdate === 'agent_message_chunk') {
+        const content = u.params.update.content;
+        if (content?.type === 'text' && content.text) {
           responseChunks.push(content.text);
         }
       }
     });
 
-    // 6. Send prompt and wait for response
     console.log('[Task] Sending prompt to agent...');
-    const response = await client.sessionPrompt(agent.sessionId, promptBlocks);
+    const response = await client.sessionPrompt(sessionResponse.sessionId, promptBlocks);
 
     console.log(`[Task] Received response, stopReason: ${response.stopReason}`);
 
-    // 7. Build output file path (result.json alongside task file)
     const outputPath = absoluteTaskFilePath.replace(/\.json$/, '') + '.result.json';
 
-    // 8. Write task result
     const taskResult: TaskResult = {
       taskId: task.taskId,
       status: response.stopReason === 'end_turn' ? 'success' : 'failure',
@@ -148,7 +110,6 @@ export async function taskCommand(targetPath: string, taskFilePath: string): Pro
       throw new Error(`Failed to write task result to: ${outputPath}`);
     }
 
-    // 9. Output success message
     console.log('');
     console.log('========================================');
     console.log('Task completed successfully!');

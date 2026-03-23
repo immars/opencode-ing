@@ -10,6 +10,8 @@ import { statusCommand } from './commands/status.js';
 import { listCommand } from './commands/list.js';
 import { taskCommand } from './commands/task.js';
 import { chatCommand } from './commands/chat.js';
+import { sessionsCommand } from './commands/sessions.js';
+import type { AgentType } from './sessions/index.js';
 
 const VERSION = '1.0.0';
 
@@ -23,6 +25,7 @@ function printHelp(): void {
   console.log(`  coding-agent-cli stop <path>                Stop agent`);
   console.log(`  coding-agent-cli status [path]              Check status`);
   console.log(`  coding-agent-cli list                       List all agents`);
+  console.log(`  coding-agent-cli sessions [path] [--type T] List sessions (type: opencode|claude-code)`);
   console.log(`  coding-agent-cli task <path> <task-file>    Run task from JSON file`);
   console.log(`  coding-agent-cli chat <path> <message>      Send message to agent`);
 }
@@ -135,6 +138,25 @@ export async function main(argv: string[] = process.argv): Promise<number> {
     case 'list':
       await listCommand();
       return 0;
+    
+    case 'sessions': {
+      const targetPath = args._[0] as string | undefined;
+      const limit = args.limit ? parseInt(args.limit as string, 10) : 20;
+      const agentType = (args.type as AgentType) || 'opencode';
+
+      if (agentType !== 'opencode' && agentType !== 'claude-code') {
+        console.error(`[CLI] Error: Invalid type '${agentType}'. Must be 'opencode' or 'claude-code'`);
+        return 1;
+      }
+
+      try {
+        await sessionsCommand({ path: targetPath, limit, agentType });
+        return 0;
+      } catch (error) {
+        console.error('[CLI] Failed to list sessions:', error);
+        return 1;
+      }
+    }
 
     case 'task': {
       const targetPath = args._[0];

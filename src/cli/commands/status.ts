@@ -1,15 +1,13 @@
-import { listAgents, getAgent, syncWithTmux } from '../registry.js';
-import { isSessionRunning, getSessionPid } from '../process.js';
+import { getAgentByPath, listAllAgents, type AgentSessionInfo } from '../process.js';
 import path from 'node:path';
 
 export interface StatusResult {
-  sessionId: string;
   type: 'opencode' | 'claude-code';
   pid: number | null;
   tmuxSession: string;
   path: string;
-  startedAt: string;
-  status: 'running' | 'stopped' | 'error';
+  startedAt: string | null;
+  status: 'running' | 'stopped';
   uptime?: number;
 }
 
@@ -39,52 +37,32 @@ function formatUptime(startedAt: string): string {
   return `${seconds}s`;
 }
 
-function getStatusByPath(targetPath: string): StatusResult | null {
-  const agents = listAgents();
-  const resolvedPath = path.resolve(targetPath);
+function toStatusResult(agent: AgentSessionInfo): StatusResult {
+  return {
+    type: agent.type,
+    pid: agent.pid,
+    tmuxSession: agent.tmuxSession,
+    path: agent.path,
+    startedAt: agent.startedAt,
+    status: 'running',
+    uptime: agent.startedAt ? Date.now() - new Date(agent.startedAt).getTime() : undefined,
+  };
+}
 
-  const agent = agents.find((a) => path.resolve(a.path) === resolvedPath);
+function getStatusByPath(targetPath: string): StatusResult | null {
+  const resolvedPath = path.resolve(targetPath);
+  const agent = getAgentByPath(resolvedPath);
+  
   if (!agent) {
     return null;
   }
 
-  const tmuxSession = agent.tmuxSession || '';
-  const isAlive = tmuxSession ? isSessionRunning(tmuxSession) : false;
-  const status = isAlive ? 'running' : 'error';
-  const currentPid = tmuxSession ? getSessionPid(tmuxSession) : null;
-
-  return {
-    sessionId: agent.sessionId,
-    type: agent.type,
-    pid: currentPid,
-    tmuxSession,
-    path: agent.path,
-    startedAt: agent.startedAt,
-    status,
-    uptime: isAlive ? Date.now() - new Date(agent.startedAt).getTime() : undefined,
-  };
+  return toStatusResult(agent);
 }
 
 function getAllStatuses(): StatusResult[] {
-  const agents = listAgents();
-
-  return agents.map((agent) => {
-    const tmuxSession = agent.tmuxSession || '';
-    const isAlive = tmuxSession ? isSessionRunning(tmuxSession) : false;
-    const status = isAlive ? 'running' : agent.status === 'running' ? 'error' : agent.status;
-    const currentPid = tmuxSession ? getSessionPid(tmuxSession) : null;
-
-    return {
-      sessionId: agent.sessionId,
-      type: agent.type,
-      pid: currentPid,
-      tmuxSession,
-      path: agent.path,
-      startedAt: agent.startedAt,
-      status,
-      uptime: isAlive ? Date.now() - new Date(agent.startedAt).getTime() : undefined,
-    };
-  });
+  const agents = listAllAgents();
+  return agents.map(toStatusResult);
 }
 
 function printSingleStatus(result: StatusResult | null, targetPath: string): void {
@@ -97,21 +75,20 @@ function printSingleStatus(result: StatusResult | null, targetPath: string): voi
   console.log(`  Type:      ${result.type}`);
   console.log(`  PID:       ${result.pid ?? 'N/A'}`);
   console.log(`  tmux:      ${result.tmuxSession || 'N/A'}`);
-  console.log(`  Session:   ${result.sessionId}`);
   console.log(`  Status:    ${result.status}`);
-  console.log(`  Started:   ${result.startedAt}`);
-  if (result.uptime !== undefined) {
+  if (result.startedAt) {
+    console.log(`  Started:   ${result.startedAt}`);
     console.log(`  Uptime:    ${formatUptime(result.startedAt)}`);
   }
 }
 
 function printAllStatuses(results: StatusResult[]): void {
   if (results.length === 0) {
-    console.log('No agents registered.');
+    console.log('No agents running.');
     return;
   }
 
-  console.log(`Registered Agents (${results.length}):`);
+  console.log(`Running Agents (${results.length}):`);
   console.log('');
 
   for (const result of results) {
@@ -120,9 +97,8 @@ function printAllStatuses(results: StatusResult[]): void {
     console.log(`    Path:     ${result.path}`);
     console.log(`    PID:      ${result.pid ?? 'N/A'}`);
     console.log(`    tmux:     ${result.tmuxSession || 'N/A'}`);
-    console.log(`    Session:  ${result.sessionId}`);
-    console.log(`    Started:  ${result.startedAt}`);
-    if (result.uptime !== undefined) {
+    if (result.startedAt) {
+      console.log(`    Started:  ${result.startedAt}`);
       console.log(`    Uptime:   ${formatUptime(result.startedAt)}`);
     }
     console.log('');
@@ -130,7 +106,6 @@ function printAllStatuses(results: StatusResult[]): void {
 }
 
 export async function statusCommand(targetPath?: string): Promise<void> {
-  syncWithTmux();
   if (targetPath) {
     const result = getStatusByPath(targetPath);
     printSingleStatus(result, targetPath);

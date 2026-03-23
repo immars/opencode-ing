@@ -4,9 +4,14 @@
  * Provides tmux-based session management for agent execution.
  * Uses tmux sessions to manage agent processes for better persistence
  * and cross-terminal support.
+ * 
+ * tmux is the SINGLE SOURCE OF TRUTH for agent state.
+ * No local file persistence is used.
  */
 
 import { spawnSync } from 'node:child_process';
+
+export type AgentType = 'opencode' | 'claude-code';
 
 export interface ProcessInfo {
   tmuxSession: string;
@@ -15,14 +20,116 @@ export interface ProcessInfo {
   args: string[];
 }
 
+export interface AgentSessionInfo {
+  tmuxSession: string;
+  path: string;
+  pid: number | null;
+  type: AgentType;
+  startedAt: string | null;
+}
+
 const GRACEFUL_SHUTDOWN_TIMEOUT = 5000;
+
+const SESSION_PREFIX = 'code-ing-';
 
 export function generateSessionName(targetPath: string): string {
   const safePath = targetPath
     .replace(/^\//, '')
     .replace(/\/$/, '')
     .replace(/\//g, '-');
-  return `code-ing-${safePath}`;
+  return `${SESSION_PREFIX}${safePath}`;
+}
+
+export function pathFromSessionName(sessionName: string): string | null {
+  if (!sessionName.startsWith(SESSION_PREFIX)) {
+    return null;
+  }
+  const safePath = sessionName.slice(SESSION_PREFIX.length);
+  return '/' + safePath.replace(/-/g, '/');
+}
+
+export function getAgentTypeFromSession(sessionName: string): AgentType | null {
+  if (!hasTmuxSession(sessionName)) {
+    return null;
+  }
+
+  const result = runTmux(['list-panes', '-t', sessionName, '-F', '#{pane_current_command}']);
+  if (result.status !== 0) {
+    return null;
+  }
+
+  const command = result.stdout.trim();
+  if (command === 'opencode' || command.includes('opencode')) {
+    return 'opencode';
+  }
+  if (command === 'claude' || command.includes('claude')) {
+    return 'claude-code';
+  }
+  
+  return null;
+}
+
+export function getSessionCreatedTime(sessionName: string): string | null {
+  if (!hasTmuxSession(sessionName)) {
+    return null;
+  }
+
+  const result = runTmux(['display-message', '-t', sessionName, '-p', '#{session_created}']);
+  if (result.status !== 0) {
+    return null;
+  }
+
+  const timestamp = parseInt(result.stdout.trim(), 10);
+  if (isNaN(timestamp)) {
+    return null;
+  }
+
+  return new Date(timestamp * 1000).toISOString();
+}
+
+export function sendToSession(sessionName: string, input: string): boolean {
+  if (!hasTmuxSession(sessionName)) {
+    return false;
+  }
+
+  const result = runTmux(['send-keys', '-t', sessionName, input, 'Enter']);
+  return result.status === 0;
+}
+
+export function sendRawToSession(sessionName: string, input: string): boolean {
+  if (!hasTmuxSession(sessionName)) {
+    return false;
+  }
+
+  const result = runTmux(['send-keys', '-t', sessionName, '-l', input]);
+  return result.status === 0;
+}
+
+export function waitForSessionOutput(
+  sessionName: string,
+  expectedPattern: RegExp,
+  timeoutMs: number = 5000
+): string | null {
+  if (!hasTmuxSession(sessionName)) {
+    return null;
+  }
+
+  const startTime = Date.now();
+  let lastOutput = '';
+
+  while (Date.now() - startTime < timeoutMs) {
+    const output = getSessionOutput(sessionName, 100);
+    if (expectedPattern.test(output)) {
+      const newContent = output.slice(lastOutput.length);
+      return newContent;
+    }
+    lastOutput = output;
+    
+    const spinStart = Date.now();
+    while (Date.now() - spinStart < 100) { }
+  }
+
+  return null;
 }
 
 /**
@@ -252,7 +359,51 @@ export function listCodeIngSessions(): string[] {
   return result.stdout
     .trim()
     .split('\n')
-    .filter((name) => name.startsWith('code-ing-'));
+    .filter((name) => name.startsWith(SESSION_PREFIX));
+}
+
+export function listAllAgents(): AgentSessionInfo[] {
+  const sessions = listCodeIngSessions();
+  const agents: AgentSessionInfo[] = [];
+
+  for (const sessionName of sessions) {
+    const path = pathFromSessionName(sessionName);
+    if (!path) continue;
+
+    const pid = getSessionPid(sessionName);
+    const type = getAgentTypeFromSession(sessionName);
+    const startedAt = getSessionCreatedTime(sessionName);
+
+    agents.push({
+      tmuxSession: sessionName,
+      path,
+      pid,
+      type: type || 'opencode',
+      startedAt,
+    });
+  }
+
+  return agents;
+}
+
+export function getAgentByPath(targetPath: string): AgentSessionInfo | null {
+  const sessionName = generateSessionName(targetPath);
+  
+  if (!hasTmuxSession(sessionName)) {
+    return null;
+  }
+
+  const pid = getSessionPid(sessionName);
+  const type = getAgentTypeFromSession(sessionName);
+  const startedAt = getSessionCreatedTime(sessionName);
+
+  return {
+    tmuxSession: sessionName,
+    path: targetPath,
+    pid,
+    type: type || 'opencode',
+    startedAt,
+  };
 }
 
 /**
