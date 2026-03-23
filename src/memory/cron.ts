@@ -180,6 +180,7 @@ export function getActiveTasks(tasks: CronTask[], currentTime: Date = new Date()
 
 /**
  * Extract single task content from full cron file content
+ * Filters out schedule and author fields, adds execution prefix
  */
 export function extractTaskContent(fullContent: string, taskName: string): string {
   const sections = fullContent.split(/^# /m);
@@ -190,18 +191,54 @@ export function extractTaskContent(fullContent: string, taskName: string): strin
     const lines = section.split('\n');
     const title = lines[0].trim();
     
-    if (title === taskName) {
-      return section;
+    let isTargetTask = title === taskName;
+    
+    if (!isTargetTask) {
+      for (let line of lines.slice(1)) {
+        let trimmed = line.trim();
+        if (trimmed.startsWith('* ')) {
+          trimmed = trimmed.substring(2);
+        }
+        if (trimmed.startsWith('name:') && trimmed.substring(5).trim() === taskName) {
+          isTargetTask = true;
+          break;
+        }
+      }
     }
     
-    for (let line of lines.slice(1)) {
-      let trimmed = line.trim();
-      if (trimmed.startsWith('* ')) {
-        trimmed = trimmed.substring(2);
+    if (isTargetTask) {
+      const filteredLines: string[] = [];
+      let taskDisplayName = taskName;
+      let description = '';
+      
+      for (let line of lines.slice(1)) {
+        let trimmed = line.trim();
+        if (trimmed.startsWith('* ')) {
+          trimmed = trimmed.substring(2);
+        }
+        
+        if (trimmed.startsWith('schedule:') || trimmed.startsWith('author:') || trimmed.startsWith('enabled:')) {
+          continue;
+        }
+        
+        if (trimmed.startsWith('name:')) {
+          taskDisplayName = trimmed.substring(5).trim();
+        } else if (trimmed.startsWith('description:') || trimmed.startsWith('descrption:')) {
+          description = trimmed.substring(12).trim();
+        } else if (trimmed) {
+          filteredLines.push(line);
+        }
       }
-      if (trimmed.startsWith('name:') && trimmed.substring(5).trim() === taskName) {
-        return section;
+      
+      const result: string[] = ['完成这个任务：', '', `### ${taskDisplayName}`];
+      if (description) {
+        result.push(description);
       }
+      if (filteredLines.length > 0) {
+        result.push(filteredLines.join('\n'));
+      }
+      
+      return result.join('\n');
     }
   }
   
